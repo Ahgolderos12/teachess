@@ -1,0 +1,43 @@
+[Event "Rated rapid game"]
+[Site "https://lichess.org/AbCd1234"]
+[Date "2026.10.01"]
+[White "Alice"]
+[Black "Bob"]
+[Result "1-0"]
+[UTCDate "2026.10.01"]
+[UTCTime "10:00:00"]
+[TimeControl "600+0"]
+[Variant "Standard"]
+
+1. e4 { [%clk 0:10:00] } 1... e5 { [%clk 0:10:00] } 2. Bc4 { [%clk 0:09:55] } 2... Nc6 { [%clk 0:09:50] } 3. Qh5 { [%clk 0:09:50] } 3... Nf6 { [%clk 0:09:30] } 4. Qxf7# { [%clk 0:09:45] } 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/Illegal1"]
+[White "Bob"]
+[Black "Alice"]
+[Result "0-1"]
+[UTCDate "2026.09.30"]
+[Variant "Standard"]
+
+1. e4 e5 2. Ke3 Ke6 3. Qxe8 0-1
+
+[Event "Casual atomic game"]
+[Site "https://lichess.org/Atomic12"]
+[White "Alice"]
+[Black "Carol"]
+[Result "1-0"]
+[Variant "Atomic"]
+
+1. e4 e5 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/EfGh5678"]
+[White "Dave"]
+[Black "alice"]
+[Result "0-1"]
+[UTCDate "2026.09.29"]
+[UTCTime "18:30:00"]
+[TimeControl "180+2"]
+[Variant "Standard"]
+
+1. f3 e5 2. g4 Qh4# 0-1
