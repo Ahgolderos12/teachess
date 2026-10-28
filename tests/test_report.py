@@ -97,7 +97,7 @@ def test_render_reports_in_spanish(conn: sqlite3.Connection) -> None:
     assert "juegas con negras" in text
     assert "error grave" in text
     assert "Nf6" in text and "g6" in text
-    assert "1 pendientes de analizar" in text
+    assert "pendientes de analizar: 1" in text
     assert "Errores por fase" in text
     assert "derrota" in text
 

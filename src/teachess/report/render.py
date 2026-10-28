@@ -31,6 +31,11 @@ PHASE_LABELS: dict[Phase, str] = {
     "middlegame": "medio juego",
     "endgame": "final",
 }
+CLASS_PLURALS: dict[Classification, str] = {
+    "inaccuracy": "imprecisiones",
+    "mistake": "errores",
+    "blunder": "errores graves",
+}
 PLATFORM_LABELS = {"chesscom": "Chess.com", "lichess": "Lichess", "pgn": "PGN"}
 
 
@@ -76,8 +81,8 @@ def render_game_report(report: GameReport, console: Console) -> None:
 
 def render_user_report(report: UserReport, console: Console) -> None:
     console.print(
-        f"[bold]Informe de {report.username}[/bold]: {len(report.games)} partidas analizadas"
-        + (f" ({report.pending} pendientes de analizar)" if report.pending else "")
+        f"[bold]Informe de {report.username}[/bold] · partidas analizadas: {len(report.games)}"
+        + (f" · pendientes de analizar: {report.pending}" if report.pending else "")
     )
     if not report.games:
         console.print("No hay partidas analizadas. Ejecuta primero `teachess analyze`.")
@@ -114,7 +119,7 @@ def render_user_report(report: UserReport, console: Console) -> None:
 
 
 def _summary_line(acpl: float | None, counts: dict[Classification, int]) -> str:
-    parts = [f"{counts.get(cls, 0)} {CLASS_LABELS[cls]}" for cls in reversed(ERROR_CLASSES)]
+    parts = [f"{CLASS_PLURALS[cls]}: {counts.get(cls, 0)}" for cls in reversed(ERROR_CLASSES)]
     return f"ACPL: {_format_acpl(acpl)} · " + ", ".join(parts)
 
 
