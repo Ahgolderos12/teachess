@@ -14,7 +14,7 @@ El mercado ya tiene coaches IA que importan partidas de Chess.com/Lichess y dete
 4. **Español como idioma principal** del coach.
 5. Plan de entrenamiento y ejercicios generados desde las propias partidas del usuario.
 
-## Principio de diseño no negociable
+## Principios de diseño no negociables
 
 > **El motor calcula, el LLM explica.**
 
@@ -22,6 +22,13 @@ El mercado ya tiene coaches IA que importan partidas de Chess.com/Lichess y dete
 - El LLM (Claude) **nunca inventa jugadas ni evaluaciones**. Todo hecho ajedrecístico que afirme debe provenir de una herramienta (tool) que consulte el motor o la base de datos.
 - Si el coach no tiene un dato verificado, debe decir que no lo sabe o pedir análisis, no improvisar.
 - Validar siempre las jugadas con `python-chess` (legalidad, FEN/PGN) antes de mostrarlas o enviarlas al LLM.
+
+> **Juzgar con criterio humano, no de máquina.**
+
+- Stockfish decide si una jugada es objetivamente buena o mala, pero el coach valora y explica los errores según lo que un humano podría ver.
+- Para eso tiene en cuenta la profundidad de la refutación (un castigo en 2-3 jugadas es exigible; una línea forzada de 10 no) y la dificultad de la mejor jugada (única, profunda, poco natural), y se calibra al nivel del jugador, no al de un campeón del mundo.
+- Nunca se reduce la profundidad del motor para simularlo: un motor con menos profundidad no piensa como un humano, solo se equivoca de otra forma.
+- Las explicaciones usan ideas y líneas cortas, no variantes largas del motor.
 
 ## Stack
 
