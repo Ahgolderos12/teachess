@@ -58,7 +58,14 @@ teachess/
 
 Ajustar la estructura si hay una razón clara; documentar el cambio aquí.
 
-Estado actual: solo existen los paquetes de la Fase 1 (`ingest/`, `engine/`, `db/`, `report/`). `patterns/`, `memory/`, `coach/` y `training/` se crean al llegar a su fase.
+Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`). `patterns/`, `memory/`, `coach/` y `training/` se crean al llegar a su fase.
+
+Decisiones de la Fase 1:
+- Pérdida por jugada en centipeones desde el punto de vista de quien mueve, con evaluaciones recortadas a ±1000 (un mate cuenta como ±1000). Umbrales: imprecisión ≥ 50, error ≥ 100, error grave ≥ 300 (`engine/analysis.py`).
+- Fase de la partida por heurística: final si ambos bandos tienen ≤ 13 puntos de material sin peones; si no, apertura hasta la jugada 10 y medio juego después.
+- Caché de Stockfish persistente en SQLite (`position_evals`, clave `(FEN, profundidad)`).
+- Esquema versionado con `PRAGMA user_version` (`db/schema.py`).
+- Los tests de CLI sustituyen `cli._http_client` y `cli._open_engine` por dobles (`tests/fakes.py`).
 
 ## Fuentes de datos
 
@@ -123,15 +130,15 @@ uv run ruff check . ; uv run mypy src
 
 # CLI
 uv run teachess --version
-# (previsto)
-uv run teachess import --platform chesscom --user <usuario>
-uv run teachess analyze --game <id>
-uv run teachess report --user <usuario>
+uv run teachess import --platform chesscom|lichess [--user <usuario>] [--max-games 50]
+uv run teachess import --platform pgn --file <archivo.pgn> --user <nombre> [--color white|black]
+uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
+uv run teachess report --user <usuario> | --game <id>
 ```
 
 ## Configuración y secretos
 
-- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`.
+- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`, `TEACHESS_DB` (por defecto `data/teachess.sqlite`), `TEACHESS_DEPTH` (por defecto 16).
 - Mantener `.env.example` actualizado sin valores reales.
 - No imprimir ni registrar claves ni datos personales en logs.
 
