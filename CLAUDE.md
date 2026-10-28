@@ -156,6 +156,7 @@ uv run teachess report --user <usuario> | --game <id>
 
 ## Cómo trabajar conmigo en este repo
 
+- Al empezar una sesión, leer `docs/NEXT_STEPS.md` (dónde lo dejamos y qué sigue) y actualizarlo al terminar.
 - Antes de implementar algo no trivial, proponer un breve plan y esperar confirmación.
 - Mostrar qué archivos se van a crear o modificar.
 - Ante ambigüedad de alcance o de decisiones de diseño, preguntar en lugar de asumir.
