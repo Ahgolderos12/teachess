@@ -1,11 +1,11 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useParams } from "react-router-dom";
 
 import { Alert } from "./components/common";
 import { GamePage } from "./pages/GamePage";
 import { GamesPage } from "./pages/GamesPage";
 import { ImportPage } from "./pages/ImportPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import { ReportPage } from "./pages/ReportPage";
+import { StatsPage } from "./pages/StatsPage";
 import { useStatus } from "./status";
 
 export function App() {
@@ -21,7 +21,7 @@ export function App() {
           <NavLink to="/" end>
             Partidas
           </NavLink>
-          <NavLink to="/report">Informe</NavLink>
+          <NavLink to="/stats">Estadísticas</NavLink>
           <NavLink to="/import">Importar</NavLink>
         </nav>
         {status && (
@@ -55,8 +55,10 @@ export function App() {
           <Route path="/" element={<GamesPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/games/:id" element={<GamePage />} />
-          <Route path="/report" element={<ReportPage />} />
-          <Route path="/report/:user" element={<ReportPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/stats/:user" element={<StatsPage />} />
+          <Route path="/report" element={<Navigate to="/stats" replace />} />
+          <Route path="/report/:user" element={<ReportRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
@@ -66,4 +68,10 @@ export function App() {
       </footer>
     </div>
   );
+}
+
+/** Old /report links now open the Statistics page. */
+function ReportRedirect() {
+  const { user = "" } = useParams();
+  return <Navigate to={`/stats/${encodeURIComponent(user)}`} replace />;
 }

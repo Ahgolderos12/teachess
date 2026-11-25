@@ -158,6 +158,22 @@ def create_app(config: ApiConfig) -> FastAPI:
             usernames = repo.list_usernames(conn)
         return serializers.user_report(report, usernames)
 
+    @app.get("/api/users/{username}/stats")
+    def user_stats(username: str) -> dict[str, Any]:
+        try:
+            return backend.stats(username)
+        except ToolInputError as exc:
+            raise HTTPException(404, str(exc)) from None
+
+    @app.get("/api/users/{username}/diagnosis")
+    def user_diagnosis(
+        username: str, window: Annotated[int, Query(ge=5, le=100)] = 20
+    ) -> dict[str, Any]:
+        try:
+            return backend.diagnosis(username, window)
+        except ToolInputError as exc:
+            raise HTTPException(404, str(exc)) from None
+
     # --- background jobs -----------------------------------------------------------
 
     @app.post("/api/imports", status_code=202)

@@ -211,6 +211,21 @@ def test_user_report(client: TestClient) -> None:
     assert ok(client.get("/api/users/nobody/report"))["known_user"] is False
 
 
+def test_user_stats_and_diagnosis(client: TestClient) -> None:
+    import_and_analyse(client)
+    stats = ok(client.get("/api/users/ALICE/stats"))
+    assert stats["user"] == "alice" and stats["games_analysed"] == 1
+    assert stats["summary"]["record"]["losses"] == 1
+    assert stats["errors"]["counts"]["blunder"] == 1
+    assert stats["terminations"]["loss"] == {"checkmate": 1}
+    assert stats["openings"][0]["opening"] == "Scholar's Mate"
+    assert [p["game_id"] for p in stats["timeline"]] == [1]
+    diagnosis = ok(client.get("/api/users/alice/diagnosis?window=10"))
+    assert diagnosis["window"]["games"] == 1 and diagnosis["notes"]
+    assert client.get("/api/users/nobody/stats").status_code == 404
+    assert client.get("/api/users/alice/diagnosis?window=1").status_code == 422
+
+
 def test_engine_endpoints(config: ApiConfig, client: TestClient) -> None:
     evaluation = ok(client.post("/api/engine/evaluate", json={"fen": FEN_BEFORE_NF6}))
     assert evaluation["best_move"] == "g6" and evaluation["eval"] == "-1.00"

@@ -90,9 +90,9 @@ def overview(games: list[GameFacts]) -> dict[str, Any]:
     """Results and how games ended over a set of games."""
     elos = [f.user_elo for f in games if f.user_elo is not None]
     return {
-        "record": _record(games),
-        "as_white": _record(f for f in games if f.stored.game.user_color == "white"),
-        "as_black": _record(f for f in games if f.stored.game.user_color == "black"),
+        "record": record(games),
+        "as_white": record(f for f in games if f.stored.game.user_color == "white"),
+        "as_black": record(f for f in games if f.stored.game.user_color == "black"),
         "losses_by_termination": dict(
             Counter(f.termination for f in games if f.outcome == "loss").most_common()
         ),
@@ -154,7 +154,7 @@ def time_trouble(games: list[GameFacts]) -> Finding | None:
                 hits.append((f, err))
     if len(hits) < MIN_GAMES:
         return None
-    low, normal = _error_rates_by_clock(timed)
+    low, normal = error_rates_by_clock(timed)
     on_time = sum(1 for f, _ in hits if f.termination == "time" and f.outcome == "loss")
     return Finding(
         kind="time_trouble",
@@ -172,7 +172,7 @@ def time_trouble(games: list[GameFacts]) -> Finding | None:
             "decisive_errors_low_clock": len(hits) - on_time,
             "serious_errors_per_100_moves_low_clock": low,
             "serious_errors_per_100_moves_otherwise": normal,
-            "avg_seconds_per_move_by_phase": _seconds_by_phase(timed),
+            "avg_seconds_per_move_by_phase": seconds_by_phase(timed),
         },
         evidence=tuple(_evidence(f, err) for f, err in hits[:MAX_EVIDENCE]),
     )
@@ -231,7 +231,7 @@ def failed_conversions(games: list[GameFacts]) -> Finding | None:
     for f in games:
         if f.outcome == "win":
             continue
-        peak = _sustained_advantage(f.user_moves)
+        peak = sustained_advantage(f.user_moves)
         if peak is None:
             continue
         later = [um for um in f.user_moves if um.move.ply > peak.move.ply]
@@ -310,7 +310,7 @@ def weak_openings(games: list[GameFacts]) -> Finding | None:
     for (family, color), group in groups.items():
         score = sum(f.score for f in group) / len(group)
         if len(group) >= 3 and score <= 0.35:
-            weak.append({"opening": family, "color": color, **_record(group)})
+            weak.append({"opening": family, "color": color, **record(group)})
     if not weak:
         return None
     weak.sort(key=lambda o: o["games"] - o["points"], reverse=True)
@@ -376,7 +376,7 @@ def phase_error_rates(games: list[GameFacts]) -> dict[str, dict[str, Any]]:
     return rates
 
 
-def _error_rates_by_clock(games: list[GameFacts]) -> tuple[float | None, float | None]:
+def error_rates_by_clock(games: list[GameFacts]) -> tuple[float | None, float | None]:
     low: list[UserMove] = []
     normal: list[UserMove] = []
     for f in games:
@@ -393,7 +393,7 @@ def _error_rates_by_clock(games: list[GameFacts]) -> tuple[float | None, float |
     return rate(low), rate(normal)
 
 
-def _seconds_by_phase(games: list[GameFacts]) -> dict[str, float | None]:
+def seconds_by_phase(games: list[GameFacts]) -> dict[str, float | None]:
     result: dict[str, float | None] = {}
     for phase in _PHASES:
         spent = [
@@ -406,7 +406,7 @@ def _seconds_by_phase(games: list[GameFacts]) -> dict[str, float | None]:
     return result
 
 
-def _sustained_advantage(moves: tuple[UserMove, ...]) -> UserMove | None:
+def sustained_advantage(moves: tuple[UserMove, ...]) -> UserMove | None:
     """First of two consecutive own moves leaving a decisive advantage."""
     for current, following in zip(moves, moves[1:], strict=False):
         if current.win_after >= DECISIVE_WIN and following.win_after >= DECISIVE_WIN:
@@ -414,7 +414,7 @@ def _sustained_advantage(moves: tuple[UserMove, ...]) -> UserMove | None:
     return None
 
 
-def _record(games: Iterable[GameFacts]) -> dict[str, Any]:
+def record(games: Iterable[GameFacts]) -> dict[str, Any]:
     items = list(games)
     counts = Counter(f.outcome for f in items)
     points = sum(f.score for f in items)

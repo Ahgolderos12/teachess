@@ -20,6 +20,7 @@ from teachess.engine.scoring import MISTAKE_WIN, win_percent
 from teachess.report.builder import mover, opening_name
 
 Outcome = Literal["win", "draw", "loss"]
+TimeClass = Literal["bullet", "blitz", "rapid", "daily"]
 Termination = Literal[
     "checkmate", "resignation", "time", "abandoned", "agreement", "repetition",
     "stalemate", "insufficient", "other",
@@ -72,6 +73,14 @@ class GameFacts:
     @property
     def points_lost(self) -> float:
         return 1.0 - self.score if self.outcome else 0.0
+
+    @property
+    def time_class(self) -> TimeClass:
+        """Chess.com-style class from the estimated duration (base + 40 × increment)."""
+        if self.base_seconds is None:
+            return "daily"
+        estimate = self.base_seconds + 40 * self.increment
+        return "bullet" if estimate < 180 else "blitz" if estimate < 600 else "rapid"
 
     @property
     def opponent(self) -> str:

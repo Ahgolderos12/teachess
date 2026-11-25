@@ -234,3 +234,28 @@ def test_diagnose_ranks_findings_and_uses_the_window(window: int) -> None:
     assert points == sorted(points, reverse=True)
     assert result["findings"][0]["kind"] in ("early_losses", "weak_openings")
     assert any("orientativos" in note for note in result["notes"])
+
+
+def test_player_stats() -> None:
+    from teachess.patterns.stats import player_stats
+
+    clocks = {ply: 600.0 - ply for ply in range(1, 41)}
+    games = [
+        build(3, result="1-0", played_at="2026-11-03T20:00:00+00:00", clocks=clocks),
+        build(2, evals={21: WON, 31: LOST}, losses={31: 60.0}, played_at="2026-11-02"),
+        early_blunder(1),
+    ]
+    stats = player_stats(games)
+    assert stats["summary"]["record"] == {
+        "games": 3, "wins": 1, "draws": 0, "losses": 2, "points": 1.0, "score_pct": 33,
+    }  # fmt: skip
+    assert stats["summary"]["streaks"]["current"] == {"outcome": "win", "games": 1}
+    assert stats["summary"]["streaks"]["longest_loss"] == 2
+    assert stats["summary"]["ratings"][0]["time_class"] == "rapid"
+    assert stats["errors"]["counts"]["blunder"] == 2
+    assert stats["conversion"]["winning_games"] == 1 and stats["conversion"]["converted"] == 0
+    assert stats["decisive_errors"]["with_decisive_error"] == 2
+    assert stats["openings"][0]["decided_early"] == 1
+    assert [p["game_id"] for p in stats["timeline"]] == [1, 2, 3]  # oldest first
+    assert [b["moves"] for b in stats["time"]["think_time"]][:2] == [1, 19]  # 2 s per own move
+    assert sum(row["games"] for row in stats["results"]["by_time_of_day"]) == 1

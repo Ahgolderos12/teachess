@@ -52,6 +52,11 @@ def win_loss(before: PositionEval, after: PositionEval, mover: chess.Color) -> f
     return max(0.0, drop if mover == chess.WHITE else -drop)
 
 
+def move_accuracy(loss: float) -> float:
+    """Accuracy of one move (0-100) from its win-probability drop, as Lichess computes it."""
+    return max(0.0, min(100.0, 103.1668 * math.exp(-0.04354 * loss) - 3.1669))
+
+
 def classify(loss: float) -> Classification:
     """Classify a move by its drop in win probability."""
     if loss >= BLUNDER_WIN:

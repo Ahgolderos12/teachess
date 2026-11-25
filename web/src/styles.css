@@ -617,7 +617,7 @@ textarea {
   text-overflow: ellipsis;
 }
 
-/* --- report --------------------------------------------------------------------------- */
+/* --- stat tiles --------------------------------------------------------------------------- */
 
 .stats {
   display: grid;
@@ -657,28 +657,6 @@ textarea {
   color: var(--inaccuracy);
 }
 
-.phase-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.phase-row {
-  display: grid;
-  grid-template-columns: 110px 1fr auto;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.phase-bar {
-  display: flex;
-  height: 14px;
-  background: var(--surface-2);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.phase-seg,
 .legend-swatch {
   display: inline-block;
   height: 100%;
@@ -708,6 +686,207 @@ textarea {
   height: 0.8rem;
   border-radius: 3px;
   vertical-align: middle;
+}
+
+/* --- statistics ------------------------------------------------------------------------ */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.grid-2 > .card {
+  margin-bottom: 1rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.card-header h2,
+.card-header .tabs {
+  margin: 0;
+}
+
+.card h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0.9rem 0 0.4rem;
+}
+
+.stats-inline .stat {
+  box-shadow: none;
+  background: var(--surface-2);
+  border-color: transparent;
+}
+
+.stat-tone-good .stat-value {
+  color: var(--win);
+}
+
+.stat-tone-bad .stat-value {
+  color: var(--loss);
+}
+
+.result-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.9fr) 2fr minmax(70px, auto);
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.18rem 0;
+  font-size: 0.9rem;
+}
+
+.result-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-row-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.result-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+
+.result-bar-empty {
+  flex: 1;
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+
+.result-seg {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+}
+
+.result-seg:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.result-seg:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.result-seg:only-child {
+  border-radius: 4px;
+}
+
+.bar-list .result-seg {
+  border-radius: 0 4px 4px 0;
+}
+
+.seg-win {
+  background: var(--win);
+}
+
+.seg-draw {
+  background: var(--draw);
+}
+
+.seg-loss {
+  background: var(--loss);
+}
+
+.seg-accent {
+  background: var(--accent);
+}
+
+.cell-bar {
+  min-width: 220px;
+}
+
+.cell-bar .result-row {
+  grid-template-columns: 0 2fr minmax(70px, auto);
+  gap: 0.4rem;
+}
+
+.line-chart {
+  position: relative;
+}
+
+.line-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: var(--font);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-line-faint {
+  stroke-width: 1;
+  opacity: 0.45;
+}
+
+.chart-cursor {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-dot {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.85rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.teacher-view {
+  border-color: var(--accent);
+  background: linear-gradient(0deg, var(--surface), var(--surface)) padding-box;
+}
+
+.findings {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 /* --- game page ------------------------------------------------------------------------ */
@@ -1098,6 +1277,10 @@ textarea {
 /* --- responsive ----------------------------------------------------------------------- */
 
 @media (max-width: 900px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
   .game-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1115,11 +1298,7 @@ textarea {
     padding: 1rem;
   }
 
-  .phase-row {
-    grid-template-columns: 90px 1fr;
-  }
-
-  .phase-row .count-badges {
-    grid-column: 2;
+  .result-row {
+    grid-template-columns: minmax(70px, 0.8fr) 1.4fr auto;
   }
 }

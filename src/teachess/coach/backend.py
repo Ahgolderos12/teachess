@@ -20,6 +20,7 @@ from teachess.engine.analysis import PersistentCacheEngine
 from teachess.engine.models import Engine, PositionEval
 from teachess.patterns.diagnosis import DEFAULT_WINDOW, diagnose
 from teachess.patterns.facts import load_facts
+from teachess.patterns.stats import player_stats
 from teachess.report.builder import load_game_report
 
 
@@ -90,6 +91,13 @@ class CoachBackend:
         with self.connection() as conn:
             facts = load_facts(conn, user)
         return {"user": user, **diagnose(facts, max(5, min(window, 100)))}
+
+    def stats(self, username: str | None) -> dict[str, Any]:
+        """Every statistic of the player's games, for the Statistics page."""
+        user = self.resolve_user(username)
+        with self.connection() as conn:
+            facts = load_facts(conn, user)
+        return {"user": user, **player_stats(facts)}
 
     def game(self, game_id: int) -> GameTools:
         with self.connection() as conn:
