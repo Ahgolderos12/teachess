@@ -76,3 +76,19 @@ Modificados:
 2. Modelo por defecto `claude-opus-5-5` (configurable con `TEACHESS_MODEL`).
 3. Respaldo automático ante rechazos activado (`fallbacks: "default"`).
 4. Se mantienen los umbrales 10/20/30 de la Fase 1.
+
+## Coste estimado (2026-11-25)
+
+Estimación a partir de los tamaños reales con la partida #6 (aprox. 3,6 caracteres por token en texto y 2,8 en JSON); falta confirmarla con una sesión real (el coach muestra los tokens al salir).
+
+- Base fija por petición, cacheada: ~3.100 tokens (prompt ~580, herramientas ~1.100 contando las instrucciones de la API, datos de la partida ~1.450). Cada resultado de herramienta: 80-130 tokens.
+- Sesión tipo (8 preguntas, ~16 peticiones): ~95.000 tokens de entrada (~85 % leídos de caché) y ~9.000 de salida, contando el razonamiento interno, que es lo más incierto (puede variar el doble arriba o abajo).
+
+| Modelo | Por sesión | 20 sesiones al mes |
+|---|---|---|
+| `claude-opus-5-5` ($4 / $20 por millón; caché $0,20) | ~0,25 $ | ~5 $ |
+| `claude-sonnet-5-5` ($2 / $10; caché $0,10) | ~0,13 $ | ~2,6 $ |
+| `claude-haiku-5-5` ($0,10 / $0,50) | < 0,01 $ | ~0,15 $ |
+| Claude Code + servidor MCP (suscripción) | 0 $ (consume límites del plan) | 0 $ |
+
+La suscripción de Claude no incluye la API, y la documentación del Agent SDK pide usar claves de API (no el login de claude.ai) en las aplicaciones construidas con él. La vía gratuita permitida es usar las herramientas como servidor MCP desde Claude Code.
