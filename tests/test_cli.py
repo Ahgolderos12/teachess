@@ -171,3 +171,14 @@ def test_coach_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEACHESS_EFFORT", "turbo")
     result = runner.invoke(cli.app, ["coach", "--game", "1"])
     assert result.exit_code == 1 and "TEACHESS_EFFORT" in result.output
+
+
+def test_mcp_command_runs_the_stdio_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    from mcp.server.mcpserver import MCPServer
+
+    transports: list[str] = []
+    monkeypatch.setattr(MCPServer, "run", lambda self, transport: transports.append(transport))
+    result = runner.invoke(cli.app, ["mcp"])
+    assert result.exit_code == 0, result.output
+    assert transports == ["stdio"]
+    assert result.stdout == ""  # stdout is reserved for the protocol

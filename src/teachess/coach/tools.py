@@ -124,20 +124,24 @@ class ToolResult:
 
 
 class CoachToolbox:
-    """Tools bound to one analysed game."""
+    """All coach tools bound to one analysed game (used by the API coach)."""
 
     def __init__(self, report: GameReport, moves: list[MoveAnalysis], engine: Engine, depth: int):
-        self._report = report
-        self._moves = moves
-        self._engine = engine
-        self._depth = depth
+        self.game = GameTools(report, moves)
+        self.engine = EngineTools(engine, depth)
         self._handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
-            "get_game_summary": lambda _: self.game_summary(),
-            "get_critical_moments": lambda args: self.critical_moments(args["min_level"]),
-            "get_move": lambda args: self.move(args["move_number"], args["color"]),
-            "evaluate_position": lambda args: self.evaluate_position(args["fen"]),
-            "evaluate_move": lambda args: self.evaluate_move(args["fen"], args["move"]),
+            "get_game_summary": lambda _: self.game.summary(),
+            "get_critical_moments": lambda args: self.game.critical_moments(args["min_level"]),
+            "get_move": lambda args: self.game.move(args["move_number"], args["color"]),
+            "evaluate_position": lambda args: self.engine.evaluate_position(args["fen"]),
+            "evaluate_move": lambda args: self.engine.evaluate_move(args["fen"], args["move"]),
         }
+
+    def game_summary(self) -> dict[str, Any]:
+        return self.game.summary()
+
+    def critical_moments(self, min_level: str) -> dict[str, Any]:
+        return self.game.critical_moments(min_level)
 
     def run(self, name: str, arguments: object) -> ToolResult:
         """Execute a tool call coming from the model. Never raises for bad input."""
@@ -153,9 +157,15 @@ class CoachToolbox:
         except ToolInputError as exc:
             return _error(str(exc))
 
-    # --- game data -----------------------------------------------------------
 
-    def game_summary(self) -> dict[str, Any]:
+class GameTools:
+    """Stored analysis of one game: no engine calls."""
+
+    def __init__(self, report: GameReport, moves: list[MoveAnalysis]):
+        self._report = report
+        self._moves = moves
+
+    def summary(self) -> dict[str, Any]:
         stored = self._report.stored
         game = stored.game
         counts = self._report.counts
@@ -215,7 +225,13 @@ class CoachToolbox:
             "clock_seconds": m.clock_seconds,
         }
 
-    # --- engine queries ----------------------------------------------------------
+
+class EngineTools:
+    """Stockfish queries on arbitrary positions, independent of any game."""
+
+    def __init__(self, engine: Engine, depth: int):
+        self._engine = engine
+        self._depth = depth
 
     def evaluate_position(self, fen: str) -> dict[str, Any]:
         board = _parse_fen(fen)

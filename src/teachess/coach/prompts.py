@@ -52,3 +52,30 @@ def game_context(summary: dict[str, Any], moments: dict[str, Any]) -> str:
         + json.dumps(data, ensure_ascii=False, indent=1)
         + "\n</datos_partida>"
     )
+
+
+def mcp_coach_prompt(game_id: int, summary: dict[str, Any], moments: dict[str, Any]) -> str:
+    """Opening message of a coach session run from an MCP client such as Claude Code."""
+    return (
+        SYSTEM_PROMPT + "\n## Esta sesión\n\n"
+        "Trabajas con las herramientas del servidor MCP `teachess`. La partida de esta sesión "
+        f"tiene `game_id` = {game_id}: pásalo a todas las herramientas que lo aceptan, también a "
+        "`evaluate_position` y `evaluate_move`, para que el motor analice a la misma "
+        "profundidad que el análisis guardado. Si el jugador "
+        "quiere hablar de otra partida, búscala con `list_games`. No calcules variantes ni "
+        "evalúes posiciones por otros medios: para eso están `evaluate_position` y "
+        "`evaluate_move`.\n\n"
+        + game_context(summary, moments)
+        + "\n\nEmpieza presentándote en una frase, resume en dos o tres cómo fue la partida "
+        "para el jugador según estos datos y pregúntale qué quiere revisar."
+    )
+
+
+def mcp_missing_game_prompt(game_id: int) -> str:
+    """Opening message when the requested game is missing or not analysed yet."""
+    return (
+        SYSTEM_PROMPT + "\n## Esta sesión\n\n"
+        f"El jugador ha pedido la partida {game_id}, pero no existe o no está analizada. "
+        "Díselo, enséñale sus partidas con `list_games` y pregúntale cuál quiere revisar. Si "
+        "elige una sin analizar, indícale el comando `uv run teachess analyze --game ID`."
+    )

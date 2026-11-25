@@ -17,6 +17,7 @@ from rich.progress import track
 
 from teachess import __version__
 from teachess.coach.agent import Coach, CoachConfig, CoachReply
+from teachess.coach.mcp_server import CoachBackend, build_server
 from teachess.coach.prompts import game_context
 from teachess.coach.tools import CoachToolbox
 from teachess.config import Settings, SettingsError, load_settings
@@ -263,6 +264,21 @@ def coach(
         f"salida {usage.output_tokens}.",
         style="dim",
     )
+
+
+@app.command("mcp")
+def mcp_server() -> None:
+    """Servidor MCP (stdio) con las herramientas del coach, para usarlo desde Claude Code."""
+    try:
+        settings = load_settings()
+    except SettingsError as exc:
+        _fail(str(exc))
+    # stdout belongs to the MCP protocol: nothing else may be printed there.
+    backend = CoachBackend(settings.db_path, settings.engine_depth, lambda: _open_engine(settings))
+    try:
+        build_server(backend).run("stdio")
+    finally:
+        backend.close()
 
 
 def _chat(session: Coach, console: Console) -> None:
