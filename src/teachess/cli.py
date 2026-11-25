@@ -1,7 +1,10 @@
 """Command-line entry point."""
 
 import io
+import os
 import sqlite3
+import threading
+import webbrowser
 from collections.abc import Callable
 from contextlib import AbstractContextManager, closing
 from enum import StrEnum
@@ -12,12 +15,15 @@ import anthropic
 import chess.pgn
 import httpx
 import typer
+from fastapi import FastAPI
 from rich.console import Console
 from rich.progress import track
 
 from teachess import __version__
+from teachess.api.app import ApiConfig, create_app
 from teachess.coach.agent import Coach, CoachConfig, CoachReply
-from teachess.coach.mcp_server import CoachBackend, build_server
+from teachess.coach.backend import CoachBackend
+from teachess.coach.mcp_server import build_server
 from teachess.coach.prompts import game_context
 from teachess.coach.tools import CoachToolbox
 from teachess.config import Settings, SettingsError, load_settings
@@ -59,6 +65,15 @@ def _open_engine(settings: Settings) -> AbstractContextManager[Engine]:
 
 def _anthropic_client() -> anthropic.Anthropic:
     return anthropic.Anthropic()
+
+
+def _run_web(app: FastAPI, host: str, port: int) -> None:
+    import uvicorn
+
+    uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
+WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 
 
 def _version_callback(value: bool) -> None:
@@ -279,6 +294,58 @@ def mcp_server() -> None:
         build_server(backend).run("stdio")
     finally:
         backend.close()
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Dirección (por defecto, solo este equipo).")] = (
+        "127.0.0.1"
+    ),
+    port: Annotated[int, typer.Option(min=1, max=65535, help="Puerto.")] = 8000,
+    open_browser: Annotated[bool, typer.Option(help="Abre la web en el navegador.")] = True,
+) -> None:
+    """Abre la aplicación web de Teachess."""
+    try:
+        settings = load_settings()
+    except SettingsError as exc:
+        _fail(str(exc))
+    if not (WEB_DIST / "index.html").is_file():
+        typer.echo(
+            "Aviso: la web no está compilada; solo funcionará la API. "
+            "Compílala con: cd web && npm install && npm run build",
+            err=True,
+        )
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    allowed_hosts = ["*"] if host in ("0.0.0.0", "::") else ["127.0.0.1", "localhost", host]
+    web_app = create_app(
+        ApiConfig(
+            db_path=settings.db_path,
+            engine_depth=settings.engine_depth,
+            open_engine=lambda: _open_engine(settings),
+            http_client=_http_client,
+            stockfish_configured=bool(
+                settings.stockfish_path and settings.stockfish_path.is_file()
+            ),
+            model=settings.model,
+            effort=settings.effort,
+            default_users={
+                "chesscom": settings.chesscom_user,
+                "lichess": settings.lichess_user,
+            },
+            anthropic_client=_anthropic_client if api_key else None,
+            static_dir=WEB_DIST,
+            allowed_hosts=allowed_hosts,
+        )
+    )
+    url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}"
+    typer.echo(f"Teachess en {url} (Ctrl+C para cerrar)")
+    if open_browser:
+        threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    _run_web(web_app, host, port)
+
+
+def _stockfish_configured(settings: Settings) -> bool:
+    return settings.stockfish_path is not None and settings.stockfish_path.is_file()
 
 
 def _chat(session: Coach, console: Console) -> None:

@@ -1,10 +1,12 @@
 """Report data built from stored analysis; formatting lives in render.py."""
 
+import io
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass, field
 
 import chess
+import chess.pgn
 
 from teachess.db import repository as repo
 from teachess.db.repository import StoredGame
@@ -132,3 +134,17 @@ def format_eval(evaluation: PositionEval) -> str:
     if abs(cp) >= CHECKMATE_CP:  # checkmate already on the board
         return "1-0" if cp > 0 else "0-1"
     return f"{cp / 100:+.2f}"
+
+
+def opening_name(pgn: str) -> str | None:
+    """Opening name from the PGN headers (Lichess `Opening`, Chess.com `ECOUrl`, or ECO)."""
+    headers = chess.pgn.read_headers(io.StringIO(pgn))
+    if headers is None:
+        return None
+    name = headers.get("Opening")
+    if name:
+        return name
+    eco_url = headers.get("ECOUrl", "")  # Chess.com: .../openings/Sicilian-Defense-...
+    if "/openings/" in eco_url:
+        return eco_url.rsplit("/openings/", 1)[1].replace("-", " ")
+    return headers.get("ECO")

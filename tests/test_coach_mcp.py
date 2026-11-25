@@ -9,7 +9,8 @@ import pytest
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from teachess.coach.mcp_server import CoachBackend, build_server
+from teachess.coach.backend import CoachBackend
+from teachess.coach.mcp_server import build_server
 from teachess.db import repository as repo
 from teachess.engine.analysis import analyse_game
 from teachess.engine.models import Engine, PositionEval

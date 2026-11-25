@@ -36,9 +36,9 @@ El mercado ya tiene coaches IA que importan partidas de Chess.com/Lichess y dete
 - **Ajedrez**: `python-chess` (PGN, tablero, motor UCI) + **Stockfish** (binario local).
 - **Datos**: SQLite (perfil estructurado, partidas, análisis). Migrar a Postgres solo si se escala.
 - **LLM**: SDK de Anthropic con *tool use*. Modelo configurable por variable de entorno (`TEACHESS_MODEL`), no hardcodear.
-- **API (fase 4+)**: FastAPI.
-- **Frontend (fase 5)**: Next.js + componente de tablero interactivo (chessboard.js / react-chessboard) con el chat del coach al lado.
-- **Tests**: pytest.
+- **API**: FastAPI (`src/teachess/api/`), servida junto con la web por `teachess serve`.
+- **Frontend**: React + TypeScript con Vite (`web/`), `react-chessboard` para el tablero y `chess.js` para mover piezas en el explorador. Se cambió Next.js por Vite porque la app es local y de un solo usuario: no necesita renderizado en servidor, y una SPA compilada a estáticos la sirve FastAPI en un único proceso (ver `docs/WEB_PLAN.md`).
+- **Tests**: pytest (backend) y Vitest + `tsc` (frontend).
 
 ## Estructura propuesta
 
@@ -56,16 +56,18 @@ teachess/
 │   ├── training/      # plan semanal, ejercicios, repetición espaciada
 │   ├── db/            # esquema SQLite y acceso a datos
 │   ├── report/        # informe de errores por jugada (Fase 1)
+│   ├── api/           # API web (FastAPI): partidas, informes, tareas, motor, coach
 │   ├── config.py      # configuración desde variables de entorno / .env
 │   └── cli.py         # punto de entrada de línea de comandos
 ├── tests/
+├── web/               # aplicación web (React + Vite); `npm run build` genera web/dist
 ├── data/              # (gitignored) partidas y bases locales
 └── docs/
 ```
 
 Ajustar la estructura si hay una razón clara; documentar el cambio aquí.
 
-Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`) y Fase 2 implementada (`coach/`, pendiente de prueba con la API real). `patterns/`, `memory/` y `training/` se crean al llegar a su fase.
+Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`), Fase 2 implementada (`coach/`) y aplicación web (`api/`, `web/`), que adelanta la API de la Fase 4 y la interfaz de la Fase 5 a petición del usuario. `patterns/`, `memory/` y `training/` se crean al llegar a su fase.
 
 Decisiones de la Fase 1:
 - Clasificación por caída de probabilidad de victoria de quien mueve (fórmula de Lichess sobre centipeones recortados a ±1000; un mate forzado o dado cuenta como 0 % o 100 %). Umbrales en puntos porcentuales: imprecisión ≥ 10, error ≥ 20, error grave ≥ 30 (`engine/scoring.py`, columna `win_loss`). Así no se castigan jugadas imperfectas en posiciones ya decididas.
@@ -87,6 +89,13 @@ Decisiones de la Fase 2 (plan completo en `docs/PHASE_2_PLAN.md`):
 - **Dos formas de usar el coach** (2026-11-25): el usuario no quiere pagar por uso del LLM, y su suscripción de Claude no cubre la API. Vía por defecto: `teachess mcp`, un servidor MCP (SDK oficial `mcp` 2.x, `MCPServer`) que se usa desde Claude Code con la suscripción del usuario (coste 0); se registra en `.mcp.json` y se arranca con el prompt MCP `coach` (`/mcp__teachess__coach <id>`). La vía `teachess coach` (Messages API, de pago por tokens) se mantiene para cuando haya más usuarios. No conectar el login de la suscripción a la app ni al Agent SDK (la documentación de Anthropic lo prohíbe en productos de terceros).
 - En MCP las herramientas de partida reciben `game_id`, hay una herramienta `list_games`, y las del motor aceptan un `game_id` opcional para analizar a la misma profundidad que el análisis guardado (si no, contradirían el informe). El prompt de sistema es el mismo en las dos vías (`coach/prompts.py`).
 - No gastar créditos de la API sin permiso explícito del usuario.
+
+Decisiones de la aplicación web (plan en `docs/WEB_PLAN.md`):
+- `uv run teachess serve` levanta la API y la web compilada (`web/dist`) en `http://127.0.0.1:8000`. Solo escucha en local y rechaza cabeceras `Host` ajenas.
+- Importar y analizar son tareas en segundo plano (`api/jobs.py`) cuyo progreso consulta la web; cada tarea abre su propia conexión SQLite y su propio Stockfish. Las consultas interactivas al motor comparten un Stockfish con cerrojo (`coach/backend.py`).
+- Las evaluaciones del explorador usan la profundidad del análisis guardado de la partida, para no contradecir el informe.
+- El chat del coach en la web usa la API de pago y solo se activa con `ANTHROPIC_API_KEY`; si no, el panel muestra el comando gratuito de Claude Code. Las respuestas llegan por streaming (SSE).
+- La web no calcula nada de ajedrez: muestra lo que devuelve la API. `chess.js` solo valida el arrastre en el explorador; la validación definitiva la hace `python-chess`.
 
 ## Fuentes de datos
 
@@ -148,6 +157,10 @@ uv sync
 # Tests y calidad
 uv run pytest
 uv run ruff check . ; uv run mypy src
+cd web && npm test && npm run typecheck
+
+# Web (compilar tras cambiar web/; en desarrollo: `npm run dev` con `teachess serve` en marcha)
+cd web && npm install && npm run build
 
 # CLI
 uv run teachess --version
@@ -155,6 +168,7 @@ uv run teachess import --platform chesscom|lichess [--user <usuario>] [--max-gam
 uv run teachess import --platform pgn --file <archivo.pgn> --user <nombre> [--color white|black]
 uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
 uv run teachess report --user <usuario> | --game <id>
+uv run teachess serve [--port 8000]        # aplicación web en http://127.0.0.1:8000
 uv run teachess mcp                        # servidor MCP del coach (lo arranca Claude Code, ver .mcp.json)
 uv run teachess coach --game <id>          # chat con el coach por API (de pago, requiere ANTHROPIC_API_KEY)
 ```

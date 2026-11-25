@@ -2,32 +2,17 @@
 
 Claude Code is the client (the user's own subscription); this server only provides chess
 facts from SQLite and Stockfish plus a `coach` prompt that starts a session on a game.
-Sync tools run in worker threads, so each call opens its own SQLite connection and engine
-calls are serialised with a lock.
 """
 
-import sqlite3
-import threading
-from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, ExitStack, closing, contextmanager
-from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Literal, TypeVar
 
-import chess
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from teachess.coach.backend import CoachBackend
 from teachess.coach.prompts import mcp_coach_prompt, mcp_missing_game_prompt
-from teachess.coach.tools import (
-    TOOL_DEFINITIONS,
-    EngineTools,
-    GameTools,
-    ToolInputError,
-)
-from teachess.db import repository as repo
-from teachess.engine.analysis import PersistentCacheEngine
-from teachess.engine.models import Engine, PositionEval
-from teachess.report.builder import load_game_report
+from teachess.coach.tools import TOOL_DEFINITIONS, ToolInputError
 
 DESCRIPTIONS = {tool["name"]: tool["description"] for tool in TOOL_DEFINITIONS}
 GAME_ID_NOTE = " Requiere game_id (ver list_games)."
@@ -38,89 +23,6 @@ DEPTH_NOTE = (
 Level = Literal["inaccuracy", "mistake", "blunder"]
 Color = Literal["white", "black"]
 T = TypeVar("T")
-
-
-class _LockedEngine:
-    def __init__(self, inner: Engine, lock: threading.Lock):
-        self._inner = inner
-        self._lock = lock
-
-    def analyse(self, board: chess.Board, depth: int) -> PositionEval:
-        with self._lock:
-            return self._inner.analyse(board, depth)
-
-
-class CoachBackend:
-    """Data access for the MCP tools. Stockfish is started on first use and kept open."""
-
-    def __init__(
-        self,
-        db_path: Path,
-        depth: int,
-        open_engine: Callable[[], AbstractContextManager[Engine]],
-    ):
-        self._db_path = db_path
-        self._depth = depth
-        self._open_engine = open_engine
-        self._lock = threading.Lock()
-        self._stack = ExitStack()
-        self._engine: Engine | None = None
-
-    def close(self) -> None:
-        self._stack.close()
-
-    @contextmanager
-    def _connection(self) -> Iterator[sqlite3.Connection]:
-        with closing(repo.connect(self._db_path)) as conn:
-            yield conn
-
-    def list_games(self, limit: int) -> dict[str, Any]:
-        with self._connection() as conn:
-            games = repo.list_games(conn)[: max(1, min(limit, 100))]
-            rows = []
-            for stored in games:
-                game = stored.game
-                row: dict[str, Any] = {
-                    "game_id": stored.id,
-                    "played_at": (game.played_at or "")[:10] or None,
-                    "white": game.white,
-                    "black": game.black,
-                    "user": game.username,
-                    "user_color": game.user_color,
-                    "result": game.result,
-                    "analyzed": stored.analyzed_depth is not None,
-                }
-                report = load_game_report(conn, stored.id)
-                if report is not None:
-                    row["user_mistakes"] = {
-                        level: report.counts[level]
-                        for level in ("inaccuracy", "mistake", "blunder")
-                    }
-                rows.append(row)
-        return {"games": rows}
-
-    def game(self, game_id: int) -> GameTools:
-        with self._connection() as conn:
-            report = load_game_report(conn, game_id)
-            if report is None:
-                raise ToolInputError(f"La partida {game_id} no existe o no está analizada.")
-            return GameTools(report, repo.get_move_analysis(conn, game_id))
-
-    @contextmanager
-    def engine_tools(self, game_id: int | None = None) -> Iterator[EngineTools]:
-        """Engine tools at the depth of the given game's analysis (default: TEACHESS_DEPTH)."""
-        with self._connection() as conn:
-            depth = self._depth
-            if game_id is not None:
-                stored = repo.get_game(conn, game_id)
-                if stored is None or stored.analyzed_depth is None:
-                    raise ToolInputError(f"La partida {game_id} no existe o no está analizada.")
-                depth = stored.analyzed_depth
-            with self._lock:
-                if self._engine is None:
-                    self._engine = self._stack.enter_context(self._open_engine())
-                engine = _LockedEngine(self._engine, self._lock)
-            yield EngineTools(PersistentCacheEngine(engine, conn), depth)
 
 
 def build_server(backend: CoachBackend) -> MCPServer:
