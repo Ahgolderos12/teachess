@@ -757,6 +757,142 @@ textarea {
   overflow-x: auto;
 }
 
+/* --- statistics: filters and comparison -------------------------------------------------- */
+
+.compare-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.compare-toolbar .chip,
+.chip-removable {
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.chip-removable {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.filter-bar {
+  padding: 0.75rem 0.9rem;
+}
+
+.filter-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.5rem 0.6rem;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.filter-field select,
+.filter-field input {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.filter-wide {
+  grid-column: span 2;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.selectable {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 0 -0.3rem;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+}
+
+.selectable:hover,
+.selectable:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+
+.selectable.selected {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.selected-text {
+  font-weight: 700;
+}
+
+.row-selected td {
+  background: var(--accent-soft);
+}
+
+.section-title {
+  margin: 1.2rem 0 0.6rem;
+}
+
+.group-tag {
+  display: inline-block;
+  min-width: 1.4rem;
+  text-align: center;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0 0.3rem;
+  color: var(--surface);
+}
+
+.group-a {
+  background: var(--accent);
+}
+
+.group-b {
+  background: var(--muted);
+}
+
+.compare-table td:not(:first-child),
+.compare-table th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-better {
+  color: var(--win);
+  font-weight: 700;
+}
+
 /* --- statistics ------------------------------------------------------------------------ */
 
 .grid-2 {
@@ -1364,6 +1500,10 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .filter-wide {
+    grid-column: auto;
+  }
+
   .header {
     position: static;
     flex-wrap: wrap;

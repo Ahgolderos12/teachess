@@ -164,6 +164,9 @@ export interface ResultRecord {
 
 export interface KeyedRecord extends ResultRecord {
   key: string;
+  value?: number; // filter value (weekday, day_block)
+  min_gap?: number | null;
+  max_gap?: number | null;
 }
 
 export interface PhaseRate {
@@ -174,8 +177,20 @@ export interface PhaseRate {
   counts?: ErrorCounts;
 }
 
+export interface FilterOptions {
+  time_classes: string[];
+  time_controls: string[];
+  terminations: string[];
+  openings: string[];
+  first_date: string | null;
+  last_date: string | null;
+  games: number;
+}
+
 export interface PlayerStats {
   user: string;
+  filter: Record<string, string | number>;
+  options: FilterOptions;
   games_total: number;
   games_analysed: number;
   games_pending: number;
@@ -260,7 +275,12 @@ export interface PlayerStats {
   timeline: {
     game_id: number;
     played_at: string | null;
+    opponent: string;
+    user_color: Color;
+    opening: string | null;
+    termination: string;
     outcome: Outcome;
+    rating_gap: number | null;
     rating: number | null;
     time_control: string | null;
     time_class: TimeClass;

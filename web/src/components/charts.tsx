@@ -1,14 +1,42 @@
+import type React from "react";
 import { useState } from "react";
 
 import { formatNumber } from "../format";
 import type { ResultRecord } from "../types";
 
 /** Win / draw / loss as one thin stacked bar, with the score next to it. */
-export function ResultBar({ record, label }: { record: ResultRecord; label: string }) {
+/** Props that make a chart row a filter: click (or Enter) to filter by it. */
+export interface Selectable {
+  onSelect?: () => void;
+  active?: boolean;
+}
+
+function selectableProps({ onSelect, active }: Selectable, base: string) {
+  if (!onSelect) return { className: base };
+  return {
+    className: `${base} selectable ${active ? "selected" : ""}`,
+    role: "button",
+    tabIndex: 0,
+    "aria-pressed": Boolean(active),
+    onClick: onSelect,
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onSelect();
+      }
+    },
+  };
+}
+
+export function ResultBar({
+  record,
+  label,
+  ...selectable
+}: { record: ResultRecord; label: string } & Selectable) {
   const { games, wins, draws, losses } = record;
-  const tip = `${label}: ${wins} V · ${draws} T · ${losses} D`;
+  const tip = `${label}: ${wins} V · ${draws} T · ${losses} D${selectable.onSelect ? " · clic para filtrar" : ""}`;
   return (
-    <div className="result-row" title={tip}>
+    <div {...selectableProps(selectable, "result-row")} title={tip}>
       <span className="result-row-label">{label}</span>
       <div className="result-bar" role="img" aria-label={tip}>
         {games === 0 ? (
@@ -62,7 +90,7 @@ export function BarList({
   format = (v) => formatNumber(v),
   className = "seg-accent",
 }: {
-  rows: { key: string; value: number | null; note?: string }[];
+  rows: ({ key: string; value: number | null; note?: string } & Selectable)[];
   format?: (value: number) => string;
   className?: string;
 }) {
@@ -70,7 +98,7 @@ export function BarList({
   return (
     <div className="bar-list">
       {rows.map((row) => (
-        <div key={row.key} className="result-row" title={row.note ?? undefined}>
+        <div key={row.key} {...selectableProps(row, "result-row")} title={row.note ?? undefined}>
           <span className="result-row-label">{row.key}</span>
           <div className="result-bar">
             {row.value ? (

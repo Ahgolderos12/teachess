@@ -10,7 +10,7 @@ import anthropic
 from fastapi import Body, FastAPI, HTTPException, Query, WebSocket
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from teachess import __version__
 from teachess.api import serializers
@@ -29,6 +29,7 @@ from teachess.coach.tools import ToolInputError
 from teachess.config import Effort
 from teachess.db import repository as repo
 from teachess.ingest.models import Platform
+from teachess.patterns.filters import DAY_BLOCKS, GameFilter
 from teachess.report.builder import load_game_report, load_user_report
 
 MCP_COACH_COMMAND = "/mcp__teachess__coach"
@@ -87,6 +88,32 @@ class EvaluateRequest(BaseModel):
 
 class MoveRequest(EvaluateRequest):
     move: str = Field(max_length=10)
+
+
+class StatsFilter(BaseModel):
+    """Query parameters of the Statistics page (see patterns.filters.GameFilter)."""
+
+    time_class: Literal["bullet", "blitz", "rapid", "daily"] | None = None
+    time_control: str | None = Field(default=None, max_length=20)
+    color: Literal["white", "black"] | None = None
+    outcome: Literal["win", "draw", "loss"] | None = None
+    termination: str | None = Field(default=None, max_length=20)
+    opening: str | None = Field(default=None, max_length=100)
+    since: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    until: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    min_gap: int | None = Field(default=None, ge=-3000, le=3000)
+    max_gap: int | None = Field(default=None, ge=-3000, le=3000)
+    weekday: int | None = Field(default=None, ge=0, le=6)
+    day_block: int | None = None  # 0, 6, 12 or 18 (query strings never match int Literals)
+    last: int | None = Field(default=None, ge=1, le=10_000)
+    offset: int = Field(default=0, ge=0, le=10_000)
+
+    @field_validator("day_block")
+    @classmethod
+    def known_block(cls, value: int | None) -> int | None:
+        if value is not None and value not in DAY_BLOCKS:
+            raise ValueError(f"day_block debe ser uno de: {', '.join(map(str, DAY_BLOCKS))}.")
+        return value
 
 
 class CoachSessionRequest(BaseModel):
@@ -218,9 +245,9 @@ def create_app(config: ApiConfig) -> FastAPI:
         return serializers.user_report(report, usernames)
 
     @app.get("/api/users/{username}/stats")
-    def user_stats(username: str) -> dict[str, Any]:
+    def user_stats(username: str, games: Annotated[StatsFilter, Query()]) -> dict[str, Any]:
         try:
-            return backend.stats(username)
+            return backend.stats(username, GameFilter(**games.model_dump()))
         except ToolInputError as exc:
             raise HTTPException(404, str(exc)) from None
 

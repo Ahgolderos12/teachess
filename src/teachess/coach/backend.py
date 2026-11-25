@@ -20,6 +20,7 @@ from teachess.engine.analysis import PersistentCacheEngine
 from teachess.engine.models import Engine, PositionEval
 from teachess.patterns.diagnosis import DEFAULT_WINDOW, diagnose
 from teachess.patterns.facts import load_facts
+from teachess.patterns.filters import GameFilter, filter_options
 from teachess.patterns.stats import player_stats
 from teachess.report.builder import load_game_report
 
@@ -118,12 +119,18 @@ class CoachBackend:
         with self.connection() as conn:
             return repo.get_ui_state(conn, TEACHER_BOARD)
 
-    def stats(self, username: str | None) -> dict[str, Any]:
-        """Every statistic of the player's games, for the Statistics page."""
+    def stats(self, username: str | None, games: GameFilter | None = None) -> dict[str, Any]:
+        """Every statistic of the player's games (optionally filtered), for the Statistics page."""
         user = self.resolve_user(username)
+        game_filter = games or GameFilter()
         with self.connection() as conn:
             facts = load_facts(conn, user)
-        return {"user": user, **player_stats(facts)}
+        return {
+            "user": user,
+            "filter": game_filter.to_dict(),
+            "options": filter_options(facts),
+            **player_stats(game_filter.apply(facts)),
+        }
 
     def game(self, game_id: int) -> GameTools:
         with self.connection() as conn:

@@ -288,3 +288,32 @@ def test_pre_game_ratings_are_estimated_for_chesscom() -> None:
         ),
     )
     assert estimate_pre_game_ratings([lichess])[0].user_elo_before is None  # left as built
+
+
+def test_game_filter() -> None:
+    from teachess.patterns.filters import GameFilter
+
+    games = [
+        build(
+            4,
+            user_color="black",
+            result="0-1",
+            opening="Sicilian-Defense-Alapin",
+            played_at="2026-11-04",
+        ),
+        build(3, played_at="2026-11-03", termination="bob won on time"),
+        build(2, result="1/2-1/2", time_control="180", played_at="2026-11-02"),
+        build(1, result="1-0", played_at="2026-11-01"),
+    ]
+
+    def ids(**kwargs: object) -> list[int]:
+        return [f.game_id for f in GameFilter(**kwargs).apply(games)]  # type: ignore[arg-type]
+
+    assert ids() == [4, 3, 2, 1]
+    assert ids(color="black") == [4] and ids(outcome="win") == [4, 1]
+    assert ids(opening="sicilian") == [4] and ids(termination="time") == [3]
+    assert ids(time_class="blitz") == [2] and ids(time_control="600") == [4, 3, 1]
+    assert ids(since="2026-11-02", until="2026-11-03") == [3, 2]
+    assert ids(last=2) == [4, 3] and ids(last=2, offset=2) == [2, 1]
+    assert ids(outcome="win", last=1, offset=1) == [1]  # last/offset apply after the rest
+    assert GameFilter().is_empty() and GameFilter(color="white").to_dict() == {"color": "white"}

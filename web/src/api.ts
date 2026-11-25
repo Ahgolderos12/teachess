@@ -67,7 +67,8 @@ export const api = {
       user ? `/api/games?user=${encodeURIComponent(user)}` : "/api/games",
     ).then((r) => r.games),
   game: (id: number) => request<GameDetail>(`/api/games/${id}`),
-  stats: (user: string) => request<PlayerStats>(`/api/users/${encodeURIComponent(user)}/stats`),
+  stats: (user: string, query = "") =>
+    request<PlayerStats>(`/api/users/${encodeURIComponent(user)}/stats${query ? `?${query}` : ""}`),
   diagnosis: (user: string, window = 20) =>
     request<Diagnosis>(`/api/users/${encodeURIComponent(user)}/diagnosis?window=${window}`),
   sync: () => request<SyncStatus>("/api/sync"),

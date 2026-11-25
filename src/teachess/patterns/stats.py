@@ -6,7 +6,6 @@ conversion figures come from the stored Stockfish analysis.
 
 from collections import Counter
 from collections.abc import Callable, Iterable
-from datetime import datetime
 from statistics import mean
 from typing import Any
 
@@ -23,12 +22,17 @@ from teachess.patterns.diagnosis import (
     sustained_advantage,
 )
 from teachess.patterns.facts import DECISIVE_WIN, GameFacts, UserMove
+from teachess.patterns.filters import day_block, local_time
 
 LOSING_WIN = 100.0 - DECISIVE_WIN  # 20 %: a clearly lost position
 ERROR_CLASSES: tuple[Classification, ...] = ("inaccuracy", "mistake", "blunder")
 WEEKDAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
-DAY_BLOCKS = ((0, "madrugada (0-6 h)"), (6, "mañana (6-12 h)"), (12, "tarde (12-18 h)"),
-              (18, "noche (18-24 h)"))  # fmt: skip
+DAY_BLOCKS = (
+    (0, "madrugada (0-6 h)"),
+    (6, "mañana (6-12 h)"),
+    (12, "tarde (12-18 h)"),
+    (18, "noche (18-24 h)"),
+)  # fmt: skip  (start hours match filters.DAY_BLOCKS)
 # Rival's rating minus the player's, both before the game.
 RATING_BUCKETS = ((-10_000, "rival 100+ por debajo"), (-99, "rival 26-99 por debajo"),
                   (-25, "rival parecido (±25)"), (26, "rival 26-99 por encima"),
@@ -166,25 +170,26 @@ def _by_rating_diff(games: list[GameFacts]) -> list[dict[str, Any]]:
     for index, (low, label) in enumerate(RATING_BUCKETS):
         high = RATING_BUCKETS[index + 1][0] if index + 1 < len(RATING_BUCKETS) else 10_000
         group = [f for f in rated if low <= rating_gap(f) < high]
-        rows.append({"key": label, **record(group)})
+        bounds = {"min_gap": None if index == 0 else low,
+                  "max_gap": None if high == 10_000 else high - 1}  # fmt: skip
+        rows.append({"key": label, **bounds, **record(group)})
     return rows
 
 
 def _by_weekday(games: list[GameFacts]) -> list[dict[str, Any]]:
-    local = [(f, t) for f in games if (t := _local_time(f)) is not None]
+    local = [(f, t) for f in games if (t := local_time(f)) is not None]
     return [
-        {"key": name, **record(f for f, t in local if t.weekday() == day)}
+        {"key": name, "value": day, **record(f for f, t in local if t.weekday() == day)}
         for day, name in enumerate(WEEKDAYS)
     ]
 
 
 def _by_time_of_day(games: list[GameFacts]) -> list[dict[str, Any]]:
-    local = [(f, t) for f in games if (t := _local_time(f)) is not None]
-    rows = []
-    for index, (start, label) in enumerate(DAY_BLOCKS):
-        end = DAY_BLOCKS[index + 1][0] if index + 1 < len(DAY_BLOCKS) else 24
-        rows.append({"key": label, **record(f for f, t in local if start <= t.hour < end)})
-    return rows
+    local = [(f, t) for f in games if (t := local_time(f)) is not None]
+    return [
+        {"key": label, "value": start, **record(f for f, t in local if day_block(t.hour) == start)}
+        for start, label in DAY_BLOCKS
+    ]
 
 
 def _errors(analysed: list[GameFacts]) -> dict[str, Any]:
@@ -334,8 +339,13 @@ def _timeline_point(f: GameFacts) -> dict[str, Any]:
     return {
         "game_id": f.game_id,
         "played_at": f.stored.game.played_at,
+        "opponent": f.opponent,
+        "user_color": f.stored.game.user_color,
+        "opening": f.opening_family,
+        "termination": f.termination,
         "outcome": f.outcome,
-        "rating": f.user_elo,
+        "rating": f.user_elo,  # after the game: the rating curve
+        "rating_gap": rating_gap(f) if f.user_elo_before and f.opponent_elo_before else None,
         "time_control": f.stored.game.time_control,
         "time_class": f.time_class,
         "accuracy": _round(game_accuracy(f)),
@@ -384,17 +394,6 @@ def _sustained_disadvantage(moves: tuple[UserMove, ...]) -> bool:
         a.win_after <= LOSING_WIN and b.win_after <= LOSING_WIN
         for a, b in zip(moves, moves[1:], strict=False)
     )
-
-
-def _local_time(f: GameFacts) -> datetime | None:
-    played = f.stored.game.played_at
-    if not played or len(played) <= 10:
-        return None
-    try:
-        moment = datetime.fromisoformat(played)
-    except ValueError:
-        return None
-    return moment.astimezone() if moment.tzinfo else moment
 
 
 def _avg(values: Iterable[float | int | None]) -> float | None:

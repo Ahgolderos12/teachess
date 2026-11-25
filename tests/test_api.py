@@ -338,3 +338,18 @@ def test_sync_reports_platform_errors(config: ApiConfig) -> None:
     for client in make_client(broken):
         job = ok(client.post("/api/sync"), 202)
         assert job["status"] == "error" and "alice" in job["error"]
+
+
+def test_stats_filters(client: TestClient) -> None:
+    import_and_analyse(client)
+    filtered = ok(client.get("/api/users/alice/stats", params={"color": "black"}))
+    assert filtered["filter"] == {"color": "black"}
+    assert filtered["summary"]["record"]["games"] == 1
+    by_hour = ok(client.get("/api/users/alice/stats", params={"day_block": 18}))
+    assert by_hour["filter"] == {"day_block": 18}  # the count depends on the local time zone
+    assert filtered["options"]["openings"] == ["Scholar's Mate"]
+    empty = ok(client.get("/api/users/alice/stats", params={"color": "white"}))
+    assert empty["summary"]["record"]["games"] == 0 and empty["timeline"] == []
+    assert empty["options"]["games"] == 1  # options always cover every game
+    for bad in ({"day_block": 5}, {"since": "ayer"}, {"color": "red"}):
+        assert client.get("/api/users/alice/stats", params=bad).status_code == 422
