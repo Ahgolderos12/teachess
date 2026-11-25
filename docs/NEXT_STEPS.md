@@ -1,12 +1,13 @@
 # Próximos pasos
 
-Última actualización: 2026-11-25 (Fase 2).
+Última actualización: 2026-11-25 (aplicación web).
 
 ## Dónde estamos
 
 - La **Fase 1 está implementada** en la rama `phase-1-pipeline`, con el PR #1 abierto hacia `main`.
 - La **Fase 2 (coach) está implementada** en la rama `phase-2-coach` (PR #2). Se usa gratis desde Claude Code mediante un servidor MCP (sección 3).
-- Hay 83 tests y pasan, igual que `ruff` y `mypy`.
+- La **aplicación web** está implementada en la rama `phase-5-web` (PR apilado sobre el #2): `uv run teachess serve`. Ver `docs/WEB_PLAN.md`.
+- Hay 99 tests de backend y 8 de frontend; pasan, igual que `ruff`, `mypy` y `tsc`.
 - **Clasificación por probabilidad de victoria implementada** (2026-11-25). La base local se migró a la versión 2 del esquema: con tus 10 partidas, errores graves 19 → 7, errores 56 → 9, imprecisiones 33 → 27 (igual que la simulación). Un `analyze --reanalyze --depth 14` desde caché da exactamente lo mismo que la migración.
 - Probado de punta a punta con Stockfish real usando un archivo PGN local.
 - **Chess.com probado con datos reales** (2026-10-28, Mac personal, usuario `ahgolderos`): 10 partidas importadas, reimportar no duplica, color/rival/resultado coinciden con la API, análisis a profundidad 14 en ~1 min. Falta comparar los errores graves con el análisis de Chess.com.
@@ -86,6 +87,16 @@ Falta:
 - [ ] Primera sesión real con `/mcp__teachess__coach 6` en Claude Code: comprobar que no inventa jugadas, que usa `evaluate_move` en las preguntas «¿y si…?» y que pasa el `game_id`.
 - [ ] Ajustar el prompt (`coach/prompts.py`) según esa prueba.
 - [ ] Fusionar el PR #1 y después el #2.
+
+## 4. Aplicación web
+
+Implementada y verificada en Chrome (headless) con tu base de datos real y Stockfish: partidas, importación con análisis, partida (tablero, teclado, gráfica, momentos críticos, explorador con arrastre real), informe, chat del coach (con un cliente falso, sin API), modo claro/oscuro y móvil. Sin errores de consola.
+
+Falta:
+- [ ] Usarla tú: `cd web && npm install && npm run build`, después `uv run teachess serve`.
+- [ ] Fusionar los PR en orden: #1 (Fase 1), #2 (Fase 2) y el de la web.
+
+Ideas para después (sin decidir): mostrar en la web la profundidad de la refutación de cada error, filtros por apertura y ritmo, gráfica de evolución del ACPL, y la memoria del jugador (Fase 3).
 
 ## Mejoras abiertas (sin decidir)
 
