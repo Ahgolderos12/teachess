@@ -17,7 +17,7 @@ from teachess.coach.prompts import (
     mcp_teacher_prompt,
     mcp_teacher_unavailable_prompt,
 )
-from teachess.coach.tools import TOOL_DEFINITIONS, ToolInputError, show_position
+from teachess.coach.tools import TOOL_DEFINITIONS, ToolInputError
 
 DESCRIPTIONS = {tool["name"]: tool["description"] for tool in TOOL_DEFINITIONS}
 GAME_ID_NOTE = " Requiere game_id (ver list_games)."
@@ -78,12 +78,20 @@ def build_server(backend: CoachBackend) -> MCPServer:
     @server.tool(
         name="show_position",
         description=(
-            "Diagrama en texto de una posición (FEN), para enseñarla en una terminal. "
-            "orientation: el color del jugador, para verla desde su lado."
+            "Enseña una posición (FEN) al jugador: la pone en el tablero de la pestaña Teacher "
+            "de la web y devuelve un diagrama en texto para la terminal. orientation: el color "
+            "del jugador, para verla desde su lado. arrow: jugada opcional (SAN o UCI) que se "
+            "dibuja como flecha, por ejemplo al revelar la solución. caption: texto corto bajo "
+            "el tablero (partida, jugada, reloj)."
         ),
     )
-    def show_position_tool(fen: str, orientation: Color = "white") -> dict[str, Any]:
-        return _call(lambda: show_position(fen, orientation))
+    def show_position_tool(
+        fen: str,
+        orientation: Color = "white",
+        arrow: str | None = None,
+        caption: str | None = None,
+    ) -> dict[str, Any]:
+        return _call(lambda: backend.show_position(fen, orientation, arrow, caption))
 
     @server.tool(
         description=(

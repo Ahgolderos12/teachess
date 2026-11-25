@@ -8,7 +8,7 @@ import chess
 from teachess.engine.models import PositionEval
 from teachess.engine.scoring import classify, win_loss
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA_V1 = """
 CREATE TABLE games (
@@ -84,6 +84,8 @@ def migrate(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA user_version = 1")
     if version < 2:
         _migrate_to_v2(conn)
+    if version < 3:
+        _migrate_to_v3(conn)
 
 
 def _migrate_to_v2(conn: sqlite3.Connection) -> None:
@@ -100,6 +102,16 @@ def _migrate_to_v2(conn: sqlite3.Connection) -> None:
             [_rescore(row) for row in rows],
         )
         conn.execute("PRAGMA user_version = 2")
+
+
+def _migrate_to_v3(conn: sqlite3.Connection) -> None:
+    """Small key-value store shared by the MCP server and the web (e.g. the Teacher's board)."""
+    with conn:
+        conn.execute(
+            "CREATE TABLE ui_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, "
+            "updated_at TEXT NOT NULL)"
+        )
+        conn.execute("PRAGMA user_version = 3")
 
 
 def _rescore(row: tuple[Any, ...]) -> tuple[Any, ...]:

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import anthropic
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, WebSocket
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
@@ -23,6 +23,7 @@ from teachess.api.coach_sessions import (
 from teachess.api.jobs import JobError, JobManager, Progress
 from teachess.api.services import EngineFactory, HttpClientFactory, analyse_games, import_games
 from teachess.api.sync import SyncBusyError, SyncService
+from teachess.api.terminal import TeacherTerminal
 from teachess.coach.backend import CoachBackend
 from teachess.coach.tools import ToolInputError
 from teachess.config import Effort
@@ -49,6 +50,9 @@ class ApiConfig:
     job_manager: JobManager | None = None  # tests inject a synchronous one
     sync_hours: float = 0  # automatic import + analysis every N hours (0: manual only)
     sync_max_games: int = 50  # newest games fetched per platform on each sync
+    project_dir: Path = field(default_factory=Path.cwd)  # where the Teacher's Claude Code runs
+    teacher_command: list[str] | None = None  # tests replace Claude Code with a fake
+    teacher_model: str | None = None  # Claude Code model for the Teacher (None: user default)
 
 
 # --- request bodies -----------------------------------------------------------------
@@ -141,12 +145,20 @@ def create_app(config: ApiConfig) -> FastAPI:
         return report
 
     sync = SyncService(jobs, run_sync if sync_users else None, config.sync_hours * 3600)
+    terminal = TeacherTerminal(
+        config.project_dir,
+        config.allowed_hosts,
+        config.teacher_command,
+        config.teacher_model,
+        mcp_ready=None if config.teacher_command else backend.mcp_ready,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         sync.start()
         yield
         sync.stop()
+        terminal.close()
         jobs.shutdown()
         backend.close()
 
@@ -302,6 +314,21 @@ def create_app(config: ApiConfig) -> FastAPI:
             return sync.trigger()
         except SyncBusyError as exc:
             raise HTTPException(409, str(exc)) from None
+
+    # --- teacher (Claude Code in a terminal, user's subscription) -------------------
+
+    @app.get("/api/teacher")
+    def teacher_info() -> dict[str, Any]:
+        return terminal.info()
+
+    @app.get("/api/teacher/board")
+    def teacher_board() -> dict[str, Any]:
+        """Last position the teacher showed with `show_position` (null if none yet)."""
+        return {"board": backend.teacher_board()}
+
+    @app.websocket("/api/teacher/terminal")
+    async def teacher_terminal(websocket: WebSocket) -> None:
+        await terminal.serve(websocket)
 
     @app.get("/api/jobs/{job_id}")
     def job(job_id: str) -> dict[str, Any]:

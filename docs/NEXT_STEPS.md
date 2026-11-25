@@ -1,6 +1,6 @@
 # Próximos pasos
 
-Última actualización: 2026-11-25 (Teacher, paso 1).
+Última actualización: 2026-11-25 (Teacher, pasos 1-5).
 
 ## Dónde estamos
 
@@ -105,17 +105,28 @@ Claude Code (MCP) que abre la lección solo a partir de las estadísticas, impor
 automática de Chess.com y una pestaña de **estadísticas masivas** con muchas más métricas.
 Ideas, arquitectura y orden en `docs/TEACHER_PLAN.md` (orden confirmado).
 
-Hecho (rama `teacher`, sin commitear todavía): diagnóstico de patrones (`patterns/`), prompt
-MCP `teacher` y herramientas `get_player_diagnosis` y `show_position`. Las 100 partidas están
-analizadas (profundidad 14). 114 tests, `ruff` y `mypy` sin errores.
+Hecho en la rama `teacher` (4 commits, sin subir): pasos 1-5 del plan.
+- Diagnóstico de patrones (`patterns/`) + prompt MCP `teacher` + `get_player_diagnosis` y
+  `show_position`.
+- Pestaña **Estadísticas** (sustituye al Informe) con `patterns/stats.py`.
+- **Sincronización automática** (`TEACHESS_SYNC_HOURS`, 6 h por defecto) con indicador en la
+  cabecera. Probada contra Chess.com real.
+- Pestaña **Teacher**: Claude Code en una terminal en la web + tablero de la clase. Probada
+  de punta a punta con Claude Code real en Chrome headless.
+- 137 tests de backend y 8 de frontend; `ruff`, `mypy` y `tsc` sin errores.
+
+Para usarlo: `cd web && npm install && npm run build`, `uv sync` (nueva dependencia
+`websockets`) y reiniciar `uv run teachess serve`. Opcional en `.env`:
+`TEACHESS_TEACHER_MODEL=claude-opus-5-5` (con Haiku el profesor es flojo).
 
 Siguiente:
-- [ ] Primera clase real: en Claude Code, en esta carpeta, `/mcp__teachess__teacher`
-      (reiniciar Claude Code o `/mcp` para que cargue las herramientas nuevas). Ajustar el
-      prompt (`coach/prompts.py`) y los umbrales de `patterns/diagnosis.py` según lo que se vea.
-- [ ] Paso 3: pestaña Estadísticas (sustituye al Informe) con `patterns/stats.py`.
-- [ ] Paso 4: pestaña Teacher con terminal embebida.
-- [ ] Paso 5: sincronización automática (al arrancar y cada 6 h).
+- [ ] Dar clases reales y ajustar el prompt (`coach/prompts.py`) y los umbrales de
+      `patterns/diagnosis.py` con lo que se vea.
+- [ ] Paso 6: **memoria de lecciones** (Fase 3): guardar al final de cada clase un resumen
+      estructurado (tema, lo que dijo el jugador, deberes) y empezar la siguiente por ahí.
+- [ ] Paso 7: ejercicios desde tus partidas y plan semanal (Fase 4).
+- [ ] Windows: la terminal integrada no funciona (no hay `pty`); valorar `pywinpty`.
+- [ ] Fusionar los PR en orden: #1, #2, web y `teacher`.
 
 ## Mejoras abiertas (sin decidir)
 

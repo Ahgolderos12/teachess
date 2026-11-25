@@ -314,3 +314,22 @@ export interface SyncStatus {
   job: Job<SyncResult> | null;
   users: Partial<Record<Platform, string>>;
 }
+
+export interface TeacherInfo {
+  available: boolean;
+  reason: string | null;
+  token: string | null;
+  manual_command: string;
+}
+
+export interface TeacherBoard {
+  fen: string;
+  orientation: Color;
+  arrow: { uci: string; san: string } | null;
+  caption: string;
+  updated_at: string;
+}
+
+export type TerminalMessage =
+  | { type: "output"; data: string }
+  | { type: "exit"; code: number };

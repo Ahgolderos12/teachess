@@ -21,6 +21,7 @@ from rich.progress import track
 
 from teachess import __version__
 from teachess.api.app import ApiConfig, create_app
+from teachess.api.terminal import SESSION_ENV as TERMINAL_SESSION_ENV
 from teachess.coach.agent import Coach, CoachConfig, CoachReply
 from teachess.coach.backend import CoachBackend
 from teachess.coach.mcp_server import build_server
@@ -290,8 +291,11 @@ def mcp_server() -> None:
         _fail(str(exc))
     # stdout belongs to the MCP protocol: nothing else may be printed there.
     backend = CoachBackend(settings.db_path, settings.engine_depth, lambda: _open_engine(settings))
+    server = build_server(backend)
+    if session := os.environ.get(TERMINAL_SESSION_ENV):  # started from the web's Teacher tab
+        backend.announce_mcp_ready(session)
     try:
-        build_server(backend).run("stdio")
+        server.run("stdio")
     finally:
         backend.close()
 
@@ -336,6 +340,7 @@ def serve(
             static_dir=WEB_DIST,
             allowed_hosts=allowed_hosts,
             sync_hours=settings.sync_hours,
+            teacher_model=settings.teacher_model,
         )
     )
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}"

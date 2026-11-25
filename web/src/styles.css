@@ -21,6 +21,8 @@
   --radius: 10px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --terminal-bg: #fbfcfb;
+  --terminal-fg: #1c2321;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,6 +46,8 @@
     --loss: #ef6b6b;
     --draw: #9ca3af;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --terminal-bg: #0e1211;
+    --terminal-fg: #e6ebe8;
   }
 }
 
@@ -710,6 +714,49 @@ textarea {
   vertical-align: -1px;
 }
 
+/* --- teacher ----------------------------------------------------------------------------- */
+
+.teacher-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 1rem;
+  align-items: start;
+}
+
+.terminal-card {
+  padding: 0.6rem;
+  background: var(--terminal-bg);
+  margin: 0;
+}
+
+.terminal {
+  height: calc(100vh - 230px);
+  min-height: 420px;
+}
+
+.teacher-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.teacher-side .card {
+  margin: 0;
+}
+
+.board-caption {
+  margin: 0.6rem 0 0.2rem;
+  font-weight: 500;
+}
+
+.code-block {
+  font-family: var(--mono);
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  overflow-x: auto;
+}
+
 /* --- statistics ------------------------------------------------------------------------ */
 
 .grid-2 {
@@ -1299,6 +1346,14 @@ textarea {
 /* --- responsive ----------------------------------------------------------------------- */
 
 @media (max-width: 900px) {
+  .teacher-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal {
+    height: 60vh;
+  }
+
   .grid-2 {
     grid-template-columns: 1fr;
   }

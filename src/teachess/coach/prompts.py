@@ -110,7 +110,8 @@ diagnóstico y por qué importa a su nivel. Puedes elegir otro si te parece más
 empezar (por ejemplo, si el primero se apoya en pocos datos); di brevemente por qué.
 3. Propón un plan corto para la clase (dos o tres pasos).
 4. Empieza ya con el primer ejemplo práctico: una posición suya de `evidence`. Dibújala con \
-`show_position` (orientada a su color), di de qué partida es (rival, jugada, tiempo que le \
+`show_position` (orientada a su color; copia su diagrama tal cual, sin reordenar filas \
+ni columnas), di de qué partida es (rival, jugada, tiempo que le \
 quedaba si lo sabes) y pregúntale qué jugaría o qué estaba pensando. No reveles la jugada \
 correcta todavía.
 
@@ -149,4 +150,29 @@ def mcp_teacher_unavailable_prompt(reason: str) -> str:
         f"Todavía no puedes preparar la clase: {reason} Explícaselo al jugador en dos frases y "
         "dile cómo empezar: `uv run teachess import --platform chesscom` y después "
         "`uv run teachess analyze --user <usuario>`."
+    )
+
+
+TERMINAL_START_MESSAGE = "Empieza la clase."
+
+
+def teacher_terminal_system_prompt() -> str:
+    """System prompt for Claude Code launched from the web's Teacher tab.
+
+    Unlike the `teacher` MCP prompt, the diagnosis is not embedded: the session starts
+    before the MCP server is connected, so the teacher reads it with a tool.
+    """
+    return (
+        TEACHER_SYSTEM_PROMPT
+        + "\nEsta sesión de Claude Code se ha abierto desde la pestaña Teacher de la web de "
+        "Teachess: eres el profesor de ajedrez del jugador, no un asistente de programación, y "
+        "solo tienes las herramientas del servidor MCP `teachess`. Junto a esta terminal, el "
+        "jugador ve un tablero con la última posición que hayas pasado a `show_position` "
+        "(con su `caption` y su flecha, si la pones). No copies el diagrama de texto en tus "
+        "mensajes: di que tiene la posición en el tablero.\n"
+        + _TEACHER_SESSION.replace(
+            "Abajo tienes el diagnóstico de las últimas partidas del jugador",
+            "Antes de tu primer mensaje, llama a `get_player_diagnosis` (sin argumentos): "
+            "devuelve el diagnóstico de las últimas partidas del jugador",
+        )
     )

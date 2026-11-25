@@ -56,7 +56,7 @@ teachess/
 │   ├── training/      # plan semanal, ejercicios, repetición espaciada
 │   ├── db/            # esquema SQLite y acceso a datos
 │   ├── report/        # informe de errores por jugada (Fase 1)
-│   ├── api/           # API web (FastAPI): partidas, informes, tareas, motor, coach
+│   ├── api/           # API web (FastAPI): partidas, estadísticas, tareas, sincronización, motor, coach, terminal del Teacher
 │   ├── config.py      # configuración desde variables de entorno / .env
 │   └── cli.py         # punto de entrada de línea de comandos
 ├── tests/
@@ -95,7 +95,12 @@ Decisiones del Teacher (plan en `docs/TEACHER_PLAN.md`):
 - «Error decisivo»: el primer error (≥ 20 puntos de pérdida) tras el cual la probabilidad de victoria del jugador no vuelve a superar el 50 %. Los hallazgos se ordenan por puntos perdidos en las partidas que ese patrón decidió; un patrón necesita al menos 2 partidas.
 - Ventana por defecto: las 20 últimas partidas analizadas; las aperturas usan todas las partidas terminadas (solo necesitan las cabeceras del PGN).
 - Prompt MCP `teacher` (`/mcp__teachess__teacher`): abre la clase solo, con el diagnóstico embebido, y empieza por un ejemplo práctico de las partidas del jugador en modo socrático. Herramientas nuevas: `get_player_diagnosis` y `show_position` (diagrama en texto para la terminal).
-- Decididos y pendientes: el Informe de la web pasará a ser la pestaña Estadísticas (ampliada); sincronización con Chess.com al arrancar `serve` y cada 6 h; pestaña Teacher con Claude Code en una terminal embebida (PTY + WebSocket, comprobando `Origin` y un token, y limitada a las herramientas `mcp__teachess__*`).
+- Pestaña **Estadísticas** (sustituye al Informe): `patterns/stats.py` calcula todo (resultados por color, ritmo, control, ELO del rival, día y hora; ELO por ritmo, porque cada ritmo tiene el suyo; cómo terminan; errores por fase; error decisivo; conversión; tiempo; aperturas; mes a mes) y la web lo pinta con gráficas SVG propias. El ELO del PGN de Chess.com parece ser el posterior a la partida: las franjas por ELO del rival son anchas y se avisa en la web.
+- **Sincronización** (`api/sync.py`): `serve` importa (50 últimas por plataforma) y analiza al arrancar y cada `TEACHESS_SYNC_HOURS` (6 por defecto; 0 = solo a mano). Es una tarea normal (`kind: "sync"`), una sola a la vez; `GET/POST /api/sync`; indicador en la cabecera.
+- Pestaña **Teacher** (`api/terminal.py`): Claude Code del usuario en un PTY, conectado a xterm.js por WebSocket. Solo macOS/Linux (en Windows se muestra el comando manual). Bloqueado: `--tools ""`, `--strict-mcp-config` con solo `teachess`, `--allowedTools mcp__teachess`, `--permission-mode dontAsk`, `--no-chrome` y `--disable-slash-commands`. Al proceso nunca le llega `ANTHROPIC_API_KEY` (cobraría por API en vez de usar la suscripción) ni los marcadores de sesión de Claude Code. El WebSocket exige `Origin` local y un token por arranque (`GET /api/teacher`).
+- Las instrucciones del profesor van en `--append-system-prompt` (`teacher_terminal_system_prompt`) y el diagnóstico se lee con `get_player_diagnosis`. El primer mensaje («Empieza la clase.») no se pasa como argumento: se teclea en el PTY cuando el servidor MCP de esa sesión avisa de que ha arrancado (`TEACHESS_TERMINAL_SESSION` → `ui_state.mcp_ready`); si no, Claude Code respondía antes de tener las herramientas.
+- **Tablero de la clase**: `show_position` guarda la posición (FEN, orientación, flecha, rótulo) en `ui_state` (esquema v3) y la web la muestra con `react-chessboard`. Motivo: en la prueba real el modelo copió mal el diagrama de texto (reordenó las filas). En la web se le pide que no copie el diagrama; en Claude Code, que lo copie tal cual.
+- Modelo del profesor en la web: `TEACHESS_TEACHER_MODEL` (por defecto, el de Claude Code del usuario).
 
 Decisiones de la aplicación web (plan en `docs/WEB_PLAN.md`):
 - `uv run teachess serve` levanta la API y la web compilada (`web/dist`) en `http://127.0.0.1:8000`. Solo escucha en local y rechaza cabeceras `Host` ajenas.
@@ -175,7 +180,7 @@ uv run teachess import --platform chesscom|lichess [--user <usuario>] [--max-gam
 uv run teachess import --platform pgn --file <archivo.pgn> --user <nombre> [--color white|black]
 uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
 uv run teachess report --user <usuario> | --game <id>
-uv run teachess serve [--port 8000]        # aplicación web en http://127.0.0.1:8000
+uv run teachess serve [--port 8000]        # web en http://127.0.0.1:8000 (Teacher, partidas, estadísticas; sincroniza cada 6 h)
 uv run teachess mcp                        # servidor MCP del coach (lo arranca Claude Code, ver .mcp.json)
 # En Claude Code: /mcp__teachess__teacher (clase guiada) o /mcp__teachess__coach <id> (una partida)
 uv run teachess coach --game <id>          # chat con el coach por API (de pago, requiere ANTHROPIC_API_KEY)
@@ -183,7 +188,7 @@ uv run teachess coach --game <id>          # chat con el coach por API (de pago,
 
 ## Configuración y secretos
 
-- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`, `TEACHESS_DB` (por defecto `data/teachess.sqlite`), `TEACHESS_DEPTH` (por defecto 16), `TEACHESS_EFFORT` (por defecto `medium`).
+- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`, `TEACHESS_DB` (por defecto `data/teachess.sqlite`), `TEACHESS_DEPTH` (por defecto 16), `TEACHESS_EFFORT` (por defecto `medium`), `TEACHESS_SYNC_HOURS` (por defecto 6), `TEACHESS_TEACHER_MODEL` (opcional).
 - Mantener `.env.example` actualizado sin valores reales.
 - No imprimir ni registrar claves ni datos personales en logs.
 

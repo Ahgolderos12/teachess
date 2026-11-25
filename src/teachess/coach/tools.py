@@ -279,18 +279,28 @@ class EngineTools:
         }
 
 
-def show_position(fen: str, orientation: str = "white") -> dict[str, Any]:
-    """Text diagram of a position, for clients without a board (e.g. a terminal)."""
+def show_position(fen: str, orientation: str = "white", arrow: str | None = None) -> dict[str, Any]:
+    """Text diagram of a position, for clients without a board (e.g. a terminal).
+
+    `arrow` is an optional legal move (SAN or UCI) to draw on graphical boards.
+    """
     if orientation not in ("white", "black"):
         raise ToolInputError("orientation debe ser white o black.")
     board = _parse_fen(fen)
-    return {
+    result: dict[str, Any] = {
         "fen": board.fen(),
         "side_to_move": _color(board.turn),
+        "orientation": orientation,
+        "arrow": None,
         "diagram": board_diagram(board, chess.WHITE if orientation == "white" else chess.BLACK),
         "legend": "Mayúsculas: blancas; minúsculas: negras (K rey, Q dama, R torre, B alfil, "
-        "N caballo, P peón); punto: casilla vacía.",
+        "N caballo, P peón); punto: casilla vacía. Si muestras el diagrama, cópialo tal cual, "
+        "sin reordenar filas ni columnas.",
     }
+    if arrow:
+        move = _parse_move(board, arrow)
+        result["arrow"] = {"uci": move.uci(), "san": board.san(move)}
+    return result
 
 
 def board_diagram(board: chess.Board, orientation: chess.Color = chess.WHITE) -> str:

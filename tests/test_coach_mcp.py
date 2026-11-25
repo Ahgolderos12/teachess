@@ -162,6 +162,28 @@ def test_show_position_draws_the_board_from_the_players_side(server: MCPServer) 
         asyncio.run(server.call_tool("show_position", {"fen": "x"}))
 
 
+def test_show_position_publishes_the_board_for_the_web(db_path: Path) -> None:
+    backend = CoachBackend(db_path, 16, EngineOpener())
+    server = build_server(backend)
+    assert backend.teacher_board() is None
+    result = call(
+        server,
+        "show_position",
+        fen=FEN_BEFORE_NF6,
+        orientation="black",
+        arrow="g6",
+        caption="Partida 1, jugada 3",
+    )
+    assert result["arrow"] == {"uci": "g7g6", "san": "g6"}
+    board = backend.teacher_board()
+    assert board is not None
+    assert board["fen"] == FEN_BEFORE_NF6 and board["orientation"] == "black"
+    assert board["arrow"]["uci"] == "g7g6" and board["caption"] == "Partida 1, jugada 3"
+    assert board["updated_at"]
+    with pytest.raises(ToolError, match="Jugada ilegal"):
+        asyncio.run(server.call_tool("show_position", {"fen": FEN_BEFORE_NF6, "arrow": "Ke2"}))
+
+
 def test_player_diagnosis(server: MCPServer) -> None:
     result = call(server, "get_player_diagnosis")
     assert result["user"] == "alice"

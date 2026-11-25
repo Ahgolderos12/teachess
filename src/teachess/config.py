@@ -21,6 +21,7 @@ class Settings:
     model: str  # Claude model used by the coach
     effort: Effort  # reasoning effort for the coach
     sync_hours: float = 6.0  # `serve` imports and analyses new games every N hours (0: off)
+    teacher_model: str | None = None  # Claude Code model for the web's Teacher tab
 
 
 DEFAULT_DB_PATH = Path("data/teachess.sqlite")
@@ -54,6 +55,7 @@ def load_settings() -> Settings:
         model=_optional("TEACHESS_MODEL") or DEFAULT_MODEL,
         effort=_effort(_optional("TEACHESS_EFFORT")),
         sync_hours=_sync_hours(_optional("TEACHESS_SYNC_HOURS")),
+        teacher_model=_optional("TEACHESS_TEACHER_MODEL"),
     )
 
 

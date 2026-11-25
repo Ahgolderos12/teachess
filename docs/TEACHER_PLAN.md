@@ -1,6 +1,6 @@
 # Plan: el Teacher (profesor proactivo)
 
-Última actualización: 2026-11-25. Estado: **orden confirmado; paso 1 hecho** (rama `teacher`).
+Última actualización: 2026-11-25. Estado: **pasos 1-5 hechos** (rama `teacher`).
 
 Decisiones del usuario (2026-11-25): empezar por diagnóstico + prompt `teacher`; el Informe
 pasa a ser la pestaña Estadísticas (ampliada); sincronización al arrancar `serve` y cada 6 h,
@@ -101,7 +101,20 @@ evidencias (`game_id`, jugada, reloj) y tema de lección sugerido. El prompt `te
 pasa al modelo el diagnóstico + la memoria y le pide que abra la lección con el hallazgo de
 más impacto (o con el que el jugador prefiera).
 
-### La terminal embebida: notas importantes
+### La terminal embebida: lo que enseñó la prueba real
+
+- Pasar `/mcp__teachess__teacher` como prompt inicial no funciona: Claude Code lo procesa
+  antes de conectar el servidor MCP («Unknown command»). Solución: instrucciones en el prompt
+  de sistema y el primer mensaje tecleado cuando el servidor MCP avisa de que está listo.
+- La extensión de Chrome seguía disponible pese a `--strict-mcp-config`: se añadieron
+  `--no-chrome`, `--disable-slash-commands` y `--permission-mode dontAsk`.
+- El modelo reordenó las filas del diagrama de texto (tablero volteado): de ahí el tablero
+  real junto a la terminal, alimentado por `show_position`.
+- El uvicorn instalado no traía soporte de WebSocket: se añadió `websockets`.
+- Con Haiku el profesor funciona pero es flojo (llegó a escribir sintaxis de herramientas
+  como texto); `TEACHESS_TEACHER_MODEL` permite usar otro modelo.
+
+### La terminal embebida: notas de diseño
 
 - Técnica: `pty` de la biblioteca estándar de Python + WebSocket en FastAPI + `xterm.js` en
   la web. Lanza `claude` en la carpeta del proyecto con el prompt `/mcp__teachess__teacher`.
@@ -121,9 +134,11 @@ más impacto (o con el que el jugador prefiera).
    demás. Las estadísticas masivas (`patterns/stats.py`) van con el paso 3.
 2. ✅ **Prompt MCP `teacher`** + herramientas `get_player_diagnosis` y `show_position`.
    Falta la primera clase real en Claude Code y ajustar el prompt con lo que se vea.
-3. **Pestaña Estadísticas** en la web con las nuevas estadísticas.
-4. **Pestaña Teacher** con la terminal embebida.
-5. **Sincronización automática** (importar + analizar cada X horas mientras `serve` corre).
+3. ✅ **Pestaña Estadísticas** (`patterns/stats.py`), sustituye al Informe.
+4. ✅ **Pestaña Teacher**: terminal embebida + tablero de la clase. Probada con Claude Code
+   real en Chrome: abre la clase sola, muestra la posición en el tablero y da pistas sin
+   revelar la jugada.
+5. ✅ **Sincronización automática** (al arrancar `serve` y cada 6 h, botón en la cabecera).
 6. **Memoria de lecciones** (Fase 3).
 7. Ejercicios desde tus partidas, plan semanal (Fase 4).
 
