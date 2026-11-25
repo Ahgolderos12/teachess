@@ -2,11 +2,13 @@
 
 import io
 import sqlite3
+from collections.abc import Callable
 from contextlib import AbstractContextManager, closing
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, NoReturn
 
+import anthropic
 import chess.pgn
 import httpx
 import typer
@@ -14,7 +16,11 @@ from rich.console import Console
 from rich.progress import track
 
 from teachess import __version__
-from teachess.config import Settings, load_settings
+from teachess.coach.agent import Coach, CoachConfig, CoachReply
+from teachess.coach.mcp_server import CoachBackend, build_server
+from teachess.coach.prompts import game_context
+from teachess.coach.tools import CoachToolbox
+from teachess.config import Settings, SettingsError, load_settings
 from teachess.db import repository as repo
 from teachess.db.repository import StoredGame
 from teachess.engine.analysis import PersistentCacheEngine, analyse_game
@@ -49,6 +55,10 @@ def _http_client() -> httpx.Client:
 
 def _open_engine(settings: Settings) -> AbstractContextManager[Engine]:
     return StockfishEngine(settings.stockfish_path)
+
+
+def _anthropic_client() -> anthropic.Anthropic:
+    return anthropic.Anthropic()
 
 
 def _version_callback(value: bool) -> None:
@@ -194,6 +204,139 @@ def report(
         else:
             assert user is not None
             render_user_report(load_user_report(conn, user), console)
+
+
+TOOL_LABELS = {
+    "get_game_summary": "resumen de la partida",
+    "get_critical_moments": "momentos críticos",
+    "get_move": "jugada de la partida",
+    "evaluate_position": "Stockfish: posición",
+    "evaluate_move": "Stockfish: jugada",
+}
+EXIT_WORDS = {"salir", "exit", "quit"}
+
+
+@app.command()
+def coach(
+    game: Annotated[int, typer.Option(help="ID de una partida ya analizada.")],
+) -> None:
+    """Conversa con el coach (Claude) sobre una partida analizada."""
+    try:
+        settings = load_settings()
+    except SettingsError as exc:
+        _fail(str(exc))
+    console = Console()
+    with closing(repo.connect(settings.db_path)) as conn:
+        game_report = load_game_report(conn, game)
+        if game_report is None:
+            _fail(f"La partida {game} no existe o no está analizada.")
+        # Same depth as the stored analysis, so the game's positions come from the cache.
+        depth = game_report.stored.analyzed_depth or settings.engine_depth
+        try:
+            with _open_engine(settings) as stockfish:
+                toolbox = CoachToolbox(
+                    game_report,
+                    repo.get_move_analysis(conn, game),
+                    PersistentCacheEngine(stockfish, conn),
+                    depth,
+                )
+                context = game_context(
+                    toolbox.game_summary(), toolbox.critical_moments("inaccuracy")
+                )
+                session = Coach(
+                    _anthropic_client(),
+                    toolbox,
+                    CoachConfig(model=settings.model, effort=settings.effort),
+                    context,
+                )
+                game_info = game_report.stored.game
+                console.print(
+                    f"[bold]Coach de Teachess[/bold] · partida #{game}: "
+                    f"{game_info.white} vs {game_info.black} · modelo {settings.model}"
+                )
+                console.print("Escribe tu pregunta (`salir` para terminar).", style="dim")
+                _chat(session, console)
+        except StockfishNotConfiguredError as exc:
+            _fail(str(exc))
+    usage = session.usage
+    console.print(
+        f"Tokens: entrada {usage.input_tokens} (caché {usage.cache_read_tokens}), "
+        f"salida {usage.output_tokens}.",
+        style="dim",
+    )
+
+
+@app.command("mcp")
+def mcp_server() -> None:
+    """Servidor MCP (stdio) con las herramientas del coach, para usarlo desde Claude Code."""
+    try:
+        settings = load_settings()
+    except SettingsError as exc:
+        _fail(str(exc))
+    # stdout belongs to the MCP protocol: nothing else may be printed there.
+    backend = CoachBackend(settings.db_path, settings.engine_depth, lambda: _open_engine(settings))
+    try:
+        build_server(backend).run("stdio")
+    finally:
+        backend.close()
+
+
+def _chat(session: Coach, console: Console) -> None:
+    def show_text(text: str) -> None:
+        console.print(text, end="", markup=False, highlight=False, soft_wrap=True)
+
+    def show_tool(name: str) -> None:
+        console.print(f"\n· consultando {TOOL_LABELS.get(name, name)}…", style="dim", end="")
+
+    while True:
+        try:
+            question = console.input("\n[bold]Tú:[/bold] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            return
+        if not question:
+            continue
+        if question.lower() in EXIT_WORDS:
+            return
+        console.print("\n[bold green]Coach:[/bold green] ", end="")
+        reply = _ask(session, question, show_text, show_tool, console)
+        console.print()
+        if reply is not None:
+            _show_reply_notes(reply, console)
+
+
+def _ask(
+    session: Coach,
+    question: str,
+    show_text: Callable[[str], None],
+    show_tool: Callable[[str], None],
+    console: Console,
+) -> CoachReply | None:
+    """One coach turn. Recoverable API errors are shown and the chat goes on."""
+    try:
+        return session.ask(question, on_text=show_text, on_tool=show_tool)
+    except anthropic.AuthenticationError:
+        _fail("\nLa clave de Anthropic no es válida. Revisa ANTHROPIC_API_KEY en el archivo .env.")
+    except TypeError as exc:
+        if "authentication" not in str(exc):
+            raise
+        _fail("\nFalta la clave de Anthropic: configura ANTHROPIC_API_KEY en el archivo .env.")
+    except anthropic.RateLimitError:
+        console.print("\nDemasiadas peticiones seguidas; espera un poco y repite.", style="yellow")
+    except anthropic.APIConnectionError:
+        console.print("\nNo hay conexión con la API de Anthropic.", style="yellow")
+    except anthropic.APIStatusError as exc:
+        console.print(f"\nError de la API de Anthropic ({exc.status_code}).", style="yellow")
+    return None
+
+
+def _show_reply_notes(reply: CoachReply, console: Console) -> None:
+    if reply.refused:
+        console.print(
+            "El modelo no ha respondido a esta pregunta. Prueba a reformularla.", style="yellow"
+        )
+    elif reply.truncated:
+        console.print("(Respuesta cortada por longitud; pide que continúe.)", style="dim")
 
 
 def _require_one(game: int | None, user: str | None) -> None:

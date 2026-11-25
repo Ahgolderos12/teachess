@@ -3,8 +3,12 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
+
+Effort = Literal["low", "medium", "high", "xhigh", "max"]
+EFFORT_LEVELS: tuple[Effort, ...] = ("low", "medium", "high", "xhigh", "max")
 
 
 @dataclass(frozen=True)
@@ -14,10 +18,18 @@ class Settings:
     lichess_user: str | None
     db_path: Path
     engine_depth: int
+    model: str  # Claude model used by the coach
+    effort: Effort  # reasoning effort for the coach
 
 
 DEFAULT_DB_PATH = Path("data/teachess.sqlite")
 DEFAULT_ENGINE_DEPTH = 16
+DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_EFFORT: Effort = "medium"
+
+
+class SettingsError(ValueError):
+    pass
 
 
 def _optional(name: str) -> str | None:
@@ -37,4 +49,16 @@ def load_settings() -> Settings:
         lichess_user=_optional("LICHESS_USER"),
         db_path=Path(db_path) if db_path else DEFAULT_DB_PATH,
         engine_depth=int(depth) if depth else DEFAULT_ENGINE_DEPTH,
+        model=_optional("TEACHESS_MODEL") or DEFAULT_MODEL,
+        effort=_effort(_optional("TEACHESS_EFFORT")),
     )
+
+
+def _effort(value: str | None) -> Effort:
+    if value is None:
+        return DEFAULT_EFFORT
+    if value not in EFFORT_LEVELS:
+        raise SettingsError(
+            f"TEACHESS_EFFORT debe ser uno de: {', '.join(EFFORT_LEVELS)} (recibido: {value})."
+        )
+    return value

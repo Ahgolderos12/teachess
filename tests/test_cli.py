@@ -12,7 +12,14 @@ from teachess.db import repository as repo
 from teachess.engine.models import Engine
 from teachess.engine.stockfish import StockfishNotConfiguredError
 from teachess.ingest import http
-from tests.fakes import SCHOLAR_PGN, ScriptedEngine
+from tests.fakes import (
+    SCHOLAR_PGN,
+    FakeAnthropic,
+    ScriptedEngine,
+    api_message,
+    text_block,
+    tool_block,
+)
 
 LICHESS_PGN = (
     '[Site "https://lichess.org/Abc12345"]\n[White "Bob"]\n[Black "alice"]\n[Result "1-0"]\n'
@@ -100,3 +107,78 @@ def test_errors_exit_with_code_1(monkeypatch: pytest.MonkeyPatch) -> None:
     result = runner.invoke(cli.app, ["analyze", "--user", "alice"])
     assert result.exit_code == 1
     assert "STOCKFISH_PATH" in result.output
+
+
+def analysed_game() -> None:
+    invoke("import", "--platform", "lichess")
+    invoke("analyze", "--game", "1")
+
+
+def use_client(monkeypatch: pytest.MonkeyPatch, client: object) -> None:
+    monkeypatch.setattr(cli, "_anthropic_client", lambda: client)
+
+
+def test_coach_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    analysed_game()
+    client = FakeAnthropic(
+        api_message(
+            tool_block("t1", "get_move", {"move_number": 3, "color": "black"}),
+            stop_reason="tool_use",
+        ),
+        api_message(text_block("3...Nf6 permite el mate [Qxf7#].")),
+    )
+    use_client(monkeypatch, client)
+
+    result = runner.invoke(cli.app, ["coach", "--game", "1"], input="\n¿Por qué perdí?\nsalir\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Bob vs alice" in result.output
+    assert "consultando jugada de la partida" in result.output
+    assert "3...Nf6 permite el mate [Qxf7#]." in result.output  # brackets are not markup
+    assert "Tokens: entrada 200 (caché 160), salida 40." in result.output
+    assert len(client.requests) == 2  # the empty line was not sent
+
+
+def test_coach_end_of_input_closes_the_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    analysed_game()
+    use_client(monkeypatch, FakeAnthropic())
+    result = runner.invoke(cli.app, ["coach", "--game", "1"], input="")
+    assert result.exit_code == 0, result.output
+
+
+def test_coach_refusal_is_explained(monkeypatch: pytest.MonkeyPatch) -> None:
+    analysed_game()
+    use_client(monkeypatch, FakeAnthropic(api_message(stop_reason="refusal")))
+    result = runner.invoke(cli.app, ["coach", "--game", "1"], input="algo\nsalir\n")
+    assert result.exit_code == 0, result.output
+    assert "Prueba a reformularla" in result.output
+
+
+def test_coach_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = runner.invoke(cli.app, ["coach", "--game", "1"])
+    assert result.exit_code == 1 and "no existe o no está analizada" in result.output
+
+    analysed_game()
+
+    class NoCredentials(FakeAnthropic):
+        def _stream(self, **kwargs: object) -> object:
+            raise TypeError("Could not resolve authentication method. Expected api_key")
+
+    use_client(monkeypatch, NoCredentials())
+    result = runner.invoke(cli.app, ["coach", "--game", "1"], input="hola\n")
+    assert result.exit_code == 1 and "ANTHROPIC_API_KEY" in result.output
+
+    monkeypatch.setenv("TEACHESS_EFFORT", "turbo")
+    result = runner.invoke(cli.app, ["coach", "--game", "1"])
+    assert result.exit_code == 1 and "TEACHESS_EFFORT" in result.output
+
+
+def test_mcp_command_runs_the_stdio_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    from mcp.server.mcpserver import MCPServer
+
+    transports: list[str] = []
+    monkeypatch.setattr(MCPServer, "run", lambda self, transport: transports.append(transport))
+    result = runner.invoke(cli.app, ["mcp"])
+    assert result.exit_code == 0, result.output
+    assert transports == ["stdio"]
+    assert result.stdout == ""  # stdout is reserved for the protocol

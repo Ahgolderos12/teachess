@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "teachess": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "teachess",
+        "mcp"
+      ]
+    }
+  }
+}

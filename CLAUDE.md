@@ -65,7 +65,7 @@ teachess/
 
 Ajustar la estructura si hay una razón clara; documentar el cambio aquí.
 
-Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`). `patterns/`, `memory/`, `coach/` y `training/` se crean al llegar a su fase.
+Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`) y Fase 2 implementada (`coach/`, pendiente de prueba con la API real). `patterns/`, `memory/` y `training/` se crean al llegar a su fase.
 
 Decisiones de la Fase 1:
 - Clasificación por caída de probabilidad de victoria de quien mueve (fórmula de Lichess sobre centipeones recortados a ±1000; un mate forzado o dado cuenta como 0 % o 100 %). Umbrales en puntos porcentuales: imprecisión ≥ 10, error ≥ 20, error grave ≥ 30 (`engine/scoring.py`, columna `win_loss`). Así no se castigan jugadas imperfectas en posiciones ya decididas.
@@ -75,6 +75,18 @@ Decisiones de la Fase 1:
 - Caché de Stockfish persistente en SQLite (`position_evals`, clave `(FEN, profundidad)`).
 - Esquema versionado con `PRAGMA user_version` (`db/schema.py`).
 - Los tests de CLI sustituyen `cli._http_client` y `cli._open_engine` por dobles (`tests/fakes.py`).
+
+Decisiones de la Fase 2 (plan completo en `docs/PHASE_2_PLAN.md`):
+- Messages API del SDK oficial `anthropic` con un bucle de herramientas propio (`coach/agent.py`), no un agente alojado: las herramientas leen SQLite y Stockfish en local y la conversación no sale del equipo salvo hacia la API.
+- `Coach` no depende de la terminal (texto y llamadas a herramientas salen por callbacks) para poder servirlo después desde FastAPI.
+- Herramientas ligadas a una partida (`coach/tools.py`): `get_game_summary`, `get_critical_moments`, `get_move`, `evaluate_position`, `evaluate_move`. Entradas validadas con `python-chess`; los errores vuelven al modelo como `is_error`. Líneas de 5 medias jugadas como máximo.
+- Modelo `TEACHESS_MODEL` (por defecto `claude-opus-5-5`) y esfuerzo `TEACHESS_EFFORT` (por defecto `medium`). Respaldo del servidor ante rechazos activado (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). Herramientas, prompt y contexto de la partida se cachean.
+- Máximo 8 rondas de herramientas por turno. Un rechazo se avisa y se borra del historial. La conversación no se guarda (memoria: Fase 3).
+- Las consultas al motor usan la profundidad con que se analizó la partida, para aprovechar la caché.
+- Los tests sustituyen `cli._anthropic_client` por `FakeAnthropic` (`tests/fakes.py`); nunca llaman a la API.
+- **Dos formas de usar el coach** (2026-11-25): el usuario no quiere pagar por uso del LLM, y su suscripción de Claude no cubre la API. Vía por defecto: `teachess mcp`, un servidor MCP (SDK oficial `mcp` 2.x, `MCPServer`) que se usa desde Claude Code con la suscripción del usuario (coste 0); se registra en `.mcp.json` y se arranca con el prompt MCP `coach` (`/mcp__teachess__coach <id>`). La vía `teachess coach` (Messages API, de pago por tokens) se mantiene para cuando haya más usuarios. No conectar el login de la suscripción a la app ni al Agent SDK (la documentación de Anthropic lo prohíbe en productos de terceros).
+- En MCP las herramientas de partida reciben `game_id`, hay una herramienta `list_games`, y las del motor aceptan un `game_id` opcional para analizar a la misma profundidad que el análisis guardado (si no, contradirían el informe). El prompt de sistema es el mismo en las dos vías (`coach/prompts.py`).
+- No gastar créditos de la API sin permiso explícito del usuario.
 
 ## Fuentes de datos
 
@@ -143,11 +155,13 @@ uv run teachess import --platform chesscom|lichess [--user <usuario>] [--max-gam
 uv run teachess import --platform pgn --file <archivo.pgn> --user <nombre> [--color white|black]
 uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
 uv run teachess report --user <usuario> | --game <id>
+uv run teachess mcp                        # servidor MCP del coach (lo arranca Claude Code, ver .mcp.json)
+uv run teachess coach --game <id>          # chat con el coach por API (de pago, requiere ANTHROPIC_API_KEY)
 ```
 
 ## Configuración y secretos
 
-- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`, `TEACHESS_DB` (por defecto `data/teachess.sqlite`), `TEACHESS_DEPTH` (por defecto 16).
+- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`, `TEACHESS_DB` (por defecto `data/teachess.sqlite`), `TEACHESS_DEPTH` (por defecto 16), `TEACHESS_EFFORT` (por defecto `medium`).
 - Mantener `.env.example` actualizado sin valores reales.
 - No imprimir ni registrar claves ni datos personales en logs.
 

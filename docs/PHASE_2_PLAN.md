@@ -1,6 +1,6 @@
 # Plan de la Fase 2: coach conversacional sobre una partida
 
-Estado: **propuesta, pendiente de aprobación** (2026-11-25).
+Estado: **aprobado** (2026-11-25), en implementación.
 
 ## Objetivo
 
@@ -70,9 +70,34 @@ Modificados:
 4. Comando `coach` en la CLI.
 5. Documentación y prueba real.
 
-## Preguntas abiertas
+## Decisiones tomadas (2026-11-25)
 
-1. ¿Te vale un chat en la terminal para esta fase?
-2. ¿Modelo por defecto `claude-opus-5-5`? Es el más capaz de su gama; `claude-sonnet-5-5` cuesta la mitad. En cualquier caso se cambia con `TEACHESS_MODEL`.
-3. ¿Activamos el *fallback* ante rechazos (decisión 3)?
-4. Recalibrar umbrales frente a Chess.com (ver `NEXT_STEPS.md`): ¿lo hacemos antes de la Fase 2 o lo dejamos para después?
+1. Chat interactivo en la terminal.
+2. Modelo por defecto `claude-opus-5-5` (configurable con `TEACHESS_MODEL`).
+3. Respaldo automático ante rechazos activado (`fallbacks: "default"`).
+4. Se mantienen los umbrales 10/20/30 de la Fase 1.
+5. **Coste 0 para el uso diario**: el coach se usa desde Claude Code con la suscripción, mediante el servidor MCP `teachess mcp`. La vía por API (`teachess coach`) queda lista para cuando haya más usuarios. Se puede cambiar en cualquier momento.
+
+## Coste estimado (2026-11-25)
+
+Estimación a partir de los tamaños reales con la partida #6 (aprox. 3,6 caracteres por token en texto y 2,8 en JSON); falta confirmarla con una sesión real (el coach muestra los tokens al salir).
+
+- Base fija por petición, cacheada: ~3.100 tokens (prompt ~580, herramientas ~1.100 contando las instrucciones de la API, datos de la partida ~1.450). Cada resultado de herramienta: 80-130 tokens.
+- Sesión tipo (8 preguntas, ~16 peticiones): ~95.000 tokens de entrada (~85 % leídos de caché) y ~9.000 de salida, contando el razonamiento interno, que es lo más incierto (puede variar el doble arriba o abajo).
+
+| Modelo | Por sesión | 20 sesiones al mes |
+|---|---|---|
+| `claude-opus-5-5` ($4 / $20 por millón; caché $0,20) | ~0,25 $ | ~5 $ |
+| `claude-sonnet-5-5` ($2 / $10; caché $0,10) | ~0,13 $ | ~2,6 $ |
+| `claude-haiku-5-5` ($0,10 / $0,50) | < 0,01 $ | ~0,15 $ |
+| Claude Code + servidor MCP (suscripción) | 0 $ (consume límites del plan) | 0 $ |
+
+La suscripción de Claude no incluye la API, y la documentación del Agent SDK pide usar claves de API (no el login de claude.ai) en las aplicaciones construidas con él. La vía gratuita permitida es usar las herramientas como servidor MCP desde Claude Code.
+
+## Uso desde Claude Code (coste 0)
+
+1. Abrir Claude Code en la carpeta del proyecto. La primera vez pedirá aprobar el servidor MCP `teachess` del archivo `.mcp.json`; con `/mcp` se comprueba que está conectado.
+2. Escribir `/mcp__teachess__coach 6` (el número es el ID de la partida; se ven con `uv run teachess report --user <usuario>`).
+3. Conversar. El coach consulta las herramientas de Teachess (partida y Stockfish) y no calcula por su cuenta.
+
+Consume de los límites de uso de la suscripción, no dinero. Las consultas al motor sin `game_id` usan `TEACHESS_DEPTH`.
