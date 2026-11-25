@@ -1,0 +1,28 @@
+{
+  "name": "teachess-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "chess.js": "1.4.0",
+    "react": "19.3.1",
+    "react-chessboard": "5.12.4",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.7"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.2",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
+  }
+}
