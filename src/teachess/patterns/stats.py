@@ -29,11 +29,10 @@ ERROR_CLASSES: tuple[Classification, ...] = ("inaccuracy", "mistake", "blunder")
 WEEKDAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 DAY_BLOCKS = ((0, "madrugada (0-6 h)"), (6, "mañana (6-12 h)"), (12, "tarde (12-18 h)"),
               (18, "noche (18-24 h)"))  # fmt: skip
-# Wide bands: Chess.com PGNs seem to carry post-game ratings, which shift close games by
-# roughly ±8 points each way (wins look like games against weaker rivals).
-RATING_BUCKETS = ((-10_000, "rival 150+ por debajo"), (-149, "rival 50-149 por debajo"),
-                  (-49, "rival parecido (±50)"), (50, "rival 50-149 por encima"),
-                  (150, "rival 150+ por encima"))  # fmt: skip
+# Rival's rating minus the player's, both before the game.
+RATING_BUCKETS = ((-10_000, "rival 100+ por debajo"), (-99, "rival 26-99 por debajo"),
+                  (-25, "rival parecido (±25)"), (26, "rival 26-99 por encima"),
+                  (100, "rival 100+ por encima"))  # fmt: skip
 TIME_CLASSES = ("bullet", "blitz", "rapid", "daily")
 THINK_BUCKETS = ((0, "< 2 s"), (2, "2-5 s"), (5, "5-15 s"), (15, "15-60 s"), (60, "> 60 s"))
 DECISIVE_BUCKETS = ((1, "1-10"), (11, "11-20"), (21, "21-30"), (31, "31-40"), (41, "41+"))
@@ -131,7 +130,7 @@ def _ratings(finished: list[GameFacts]) -> list[dict[str, Any]]:
                 "peak": max(ratings),
                 "lowest": min(ratings),
                 "change": ratings[0] - ratings[-1],
-                "avg_opponent": _avg(f.opponent_elo for f in group if f.opponent_elo),
+                "avg_opponent": _avg(f.opponent_elo_before for f in group if f.opponent_elo_before),
             }
         )
     return sorted(rows, key=lambda row: row["games"], reverse=True)
@@ -162,11 +161,11 @@ def _grouped(games: list[GameFacts], key: Callable[[GameFacts], str]) -> list[di
 
 
 def _by_rating_diff(games: list[GameFacts]) -> list[dict[str, Any]]:
-    rated = [f for f in games if f.user_elo and f.opponent_elo]
+    rated = [f for f in games if f.user_elo_before and f.opponent_elo_before]
     rows = []
     for index, (low, label) in enumerate(RATING_BUCKETS):
         high = RATING_BUCKETS[index + 1][0] if index + 1 < len(RATING_BUCKETS) else 10_000
-        group = [f for f in rated if low <= (f.opponent_elo or 0) - (f.user_elo or 0) < high]
+        group = [f for f in rated if low <= rating_gap(f) < high]
         rows.append({"key": label, **record(group)})
     return rows
 
@@ -371,6 +370,13 @@ def _worst_games(analysed: list[GameFacts], limit: int = 10) -> list[dict[str, A
 
 
 # --- helpers ---------------------------------------------------------------------
+
+
+def rating_gap(f: GameFacts) -> int:
+    """Rival's pre-game rating minus the player's (0 if unknown)."""
+    if f.opponent_elo_before is None or f.user_elo_before is None:
+        return 0
+    return f.opponent_elo_before - f.user_elo_before
 
 
 def _sustained_disadvantage(moves: tuple[UserMove, ...]) -> bool:

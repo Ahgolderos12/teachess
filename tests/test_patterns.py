@@ -259,3 +259,32 @@ def test_player_stats() -> None:
     assert [p["game_id"] for p in stats["timeline"]] == [1, 2, 3]  # oldest first
     assert [b["moves"] for b in stats["time"]["think_time"]][:2] == [1, 19]  # 2 s per own move
     assert sum(row["games"] for row in stats["results"]["by_time_of_day"]) == 1
+
+
+def test_pre_game_ratings_are_estimated_for_chesscom() -> None:
+    from dataclasses import replace as dc_replace
+
+    from teachess.patterns.facts import estimate_pre_game_ratings
+
+    def rated(game_id: int, result: str, user_after: int, rival_after: int, day: str) -> GameFacts:
+        facts = build(game_id, result=result, played_at=f"2026-11-{day}T10:00:00+00:00")
+        return dc_replace(facts, user_elo=user_after, opponent_elo=rival_after)
+
+    games = [  # newest first, as load_facts returns them
+        rated(3, "0-1", 1000, 1010, "03"),  # lost 8 after the previous game's 1008
+        rated(2, "1-0", 1008, 990, "02"),  # won 8 after 1000
+        rated(1, "1-0", 1000, 984, "01"),  # first game: estimated with the Elo formula
+    ]
+    first, second, third = reversed(estimate_pre_game_ratings(games))
+    assert (second.user_elo_before, second.opponent_elo_before) == (1000, 998)
+    assert (third.user_elo_before, third.opponent_elo_before) == (1008, 1002)
+    assert first.user_elo_before is not None and 990 < first.user_elo_before < 1000  # won: gained
+    assert first.opponent_elo_before == 984 + (1000 - first.user_elo_before)
+    # Lichess PGNs already carry pre-game ratings.
+    lichess = dc_replace(
+        games[0],
+        stored=dc_replace(
+            games[0].stored, game=dc_replace(games[0].stored.game, platform="lichess")
+        ),
+    )
+    assert estimate_pre_game_ratings([lichess])[0].user_elo_before is None  # left as built

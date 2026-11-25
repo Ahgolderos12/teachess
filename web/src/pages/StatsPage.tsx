@@ -246,12 +246,12 @@ function Results({ stats }: { stats: PlayerStats }) {
         </section>
         <section className="card">
           <h2>Cuándo y contra quién</h2>
-          <h3>Según el ELO del rival</h3>
+          <h3>Según el ELO del rival (antes de la partida)</h3>
           {results.by_rating_diff.map((row) => (
             <ResultBar key={row.key} label={row.key} record={row} />
           ))}
           <p className="muted small">
-            Aproximado: el ELO del PGN de Chess.com parece ser el de después de la partida.
+            ELO de ambos antes de la partida (Chess.com guarda el de después; se estima).
           </p>
           <h3>Por momento del día</h3>
           {results.by_time_of_day.map((row) => (
