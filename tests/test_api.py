@@ -307,3 +307,34 @@ def test_web_not_built(config: ApiConfig) -> None:
 
 def test_rejects_unknown_hosts(client: TestClient) -> None:
     assert client.get("/api/status", headers={"host": "evil.example"}).status_code == 400
+
+
+def test_sync_imports_and_analyses_new_games(config: ApiConfig) -> None:
+    for client in make_client(config):
+        status = ok(client.get("/api/sync"))
+        assert status["configured"] is True and status["users"] == {"lichess": "alice"}
+        assert status["interval_hours"] is None and status["job"] is None  # manual only
+        job = ok(client.post("/api/sync"), 202)
+        assert job["kind"] == "sync" and job["status"] == "done"
+        assert job["result"]["new"] == 1 and job["result"]["analyzed"] == 1
+        assert ok(client.get("/api/sync"))["job"]["id"] == job["id"]
+        again = ok(client.post("/api/sync"), 202)
+        assert again["result"]["new"] == 0 and again["result"]["analyzed"] == 0
+
+
+def test_sync_needs_a_configured_player(config: ApiConfig) -> None:
+    for client in make_client(replace(config, default_users={"chesscom": None})):
+        assert ok(client.get("/api/sync"))["configured"] is False
+        assert client.post("/api/sync").status_code == 400
+
+
+def test_sync_reports_platform_errors(config: ApiConfig) -> None:
+    def failing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    broken = replace(
+        config, http_client=lambda: http.make_client(transport=httpx.MockTransport(failing))
+    )
+    for client in make_client(broken):
+        job = ok(client.post("/api/sync"), 202)
+        assert job["status"] == "error" and "alice" in job["error"]

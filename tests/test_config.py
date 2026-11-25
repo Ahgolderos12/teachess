@@ -54,3 +54,16 @@ def test_invalid_effort_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEACHESS_EFFORT", "turbo")
     with pytest.raises(SettingsError, match="TEACHESS_EFFORT"):
         load_settings()
+
+
+@pytest.mark.parametrize(("value", "hours"), [("", 6.0), ("0", 0.0), ("1,5", 1.5), ("12", 12.0)])
+def test_sync_hours(monkeypatch: pytest.MonkeyPatch, value: str, hours: float) -> None:
+    monkeypatch.setenv("TEACHESS_SYNC_HOURS", value)
+    assert load_settings().sync_hours == hours
+
+
+@pytest.mark.parametrize("value", ["-1", "nunca"])
+def test_invalid_sync_hours(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("TEACHESS_SYNC_HOURS", value)
+    with pytest.raises(SettingsError, match="TEACHESS_SYNC_HOURS"):
+        load_settings()

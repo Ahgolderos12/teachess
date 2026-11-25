@@ -22,10 +22,12 @@ from teachess.api.coach_sessions import (
 )
 from teachess.api.jobs import JobError, JobManager, Progress
 from teachess.api.services import EngineFactory, HttpClientFactory, analyse_games, import_games
+from teachess.api.sync import SyncBusyError, SyncService
 from teachess.coach.backend import CoachBackend
 from teachess.coach.tools import ToolInputError
 from teachess.config import Effort
 from teachess.db import repository as repo
+from teachess.ingest.models import Platform
 from teachess.report.builder import load_game_report, load_user_report
 
 MCP_COACH_COMMAND = "/mcp__teachess__coach"
@@ -45,6 +47,8 @@ class ApiConfig:
     static_dir: Path | None = None
     allowed_hosts: list[str] = field(default_factory=lambda: ["127.0.0.1", "localhost"])
     job_manager: JobManager | None = None  # tests inject a synchronous one
+    sync_hours: float = 0  # automatic import + analysis every N hours (0: manual only)
+    sync_max_games: int = 50  # newest games fetched per platform on each sync
 
 
 # --- request bodies -----------------------------------------------------------------
@@ -96,10 +100,53 @@ def create_app(config: ApiConfig) -> FastAPI:
     backend = CoachBackend(config.db_path, config.engine_depth, config.open_engine)
     jobs = config.job_manager or JobManager()
     coach = CoachSessions(backend, config.anthropic_client, config.model, config.effort)
+    sync_users: list[tuple[Platform, str]] = [
+        (platform, user)
+        for platform in ("chesscom", "lichess")
+        if (user := config.default_users.get(platform))
+    ]
+
+    def run_sync(progress: Progress) -> dict[str, Any]:
+        """Import the newest games of every configured player, then analyse what is new."""
+        report: dict[str, Any] = {"platforms": [], "new": 0, "analyzed": 0}
+        for platform, user in sync_users:
+            entry: dict[str, Any] = {"platform": platform, "user": user}
+            try:
+                imported = import_games(
+                    config.db_path,
+                    config.http_client,
+                    platform,
+                    user,
+                    config.sync_max_games,
+                    None,
+                    None,
+                    progress,
+                )
+                entry["new"] = imported["new"]
+                report["new"] += imported["new"]
+                pending = _pending_games(user)
+                if pending:
+                    analysed = analyse_games(
+                        config.db_path, config.open_engine, pending, config.engine_depth, progress
+                    )
+                    entry["analyzed"] = analysed["analyzed"]
+                    report["analyzed"] += analysed["analyzed"]
+            except JobError as exc:
+                entry["error"] = str(exc)
+            report["platforms"].append(entry)
+        errors = [e["error"] for e in report["platforms"] if "error" in e]
+        if errors and len(errors) == len(sync_users):
+            raise JobError(" · ".join(errors))
+        progress(1, 1, "Sincronización terminada.")
+        return report
+
+    sync = SyncService(jobs, run_sync if sync_users else None, config.sync_hours * 3600)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        sync.start()
         yield
+        sync.stop()
         jobs.shutdown()
         backend.close()
 
@@ -240,6 +287,21 @@ def create_app(config: ApiConfig) -> FastAPI:
     def _pending_games(username: str) -> list[int]:
         with backend.connection() as conn:
             return [g.id for g in repo.list_games(conn, username=username, pending_only=True)]
+
+    @app.get("/api/sync")
+    def sync_status() -> dict[str, Any]:
+        return {**sync.status(), "users": dict(sync_users)}
+
+    @app.post("/api/sync", status_code=202)
+    def sync_now() -> dict[str, Any]:
+        if not sync.configured:
+            raise HTTPException(
+                400, "Configura CHESSCOM_USER o LICHESS_USER en .env para sincronizar."
+            )
+        try:
+            return sync.trigger()
+        except SyncBusyError as exc:
+            raise HTTPException(409, str(exc)) from None
 
     @app.get("/api/jobs/{job_id}")
     def job(job_id: str) -> dict[str, Any]:

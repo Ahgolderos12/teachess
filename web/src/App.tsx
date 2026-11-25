@@ -1,6 +1,7 @@
 import { Navigate, NavLink, Route, Routes, useParams } from "react-router-dom";
 
 import { Alert } from "./components/common";
+import { SyncIndicator } from "./components/SyncIndicator";
 import { GamePage } from "./pages/GamePage";
 import { GamesPage } from "./pages/GamesPage";
 import { ImportPage } from "./pages/ImportPage";
@@ -24,6 +25,7 @@ export function App() {
           <NavLink to="/stats">Estadísticas</NavLink>
           <NavLink to="/import">Importar</NavLink>
         </nav>
+        <SyncIndicator />
         {status && (
           <span
             className={`pill ${status.stockfish ? "pill-ok" : "pill-warn"}`}

@@ -103,7 +103,7 @@ export interface AnalysisResult {
 
 export interface Job<R = unknown> {
   id: string;
-  kind: "import" | "analysis";
+  kind: "import" | "analysis" | "sync";
   status: JobStatus;
   current: number;
   total: number;
@@ -299,4 +299,18 @@ export interface Diagnosis {
   window: { games: number; from: string | null; to: string | null };
   findings: Finding[];
   notes: string[];
+}
+
+export interface SyncResult {
+  platforms: { platform: Platform; user: string; new?: number; analyzed?: number; error?: string }[];
+  new: number;
+  analyzed: number;
+}
+
+export interface SyncStatus {
+  configured: boolean;
+  interval_hours: number | null;
+  next_run_at: number | null; // epoch seconds
+  job: Job<SyncResult> | null;
+  users: Partial<Record<Platform, string>>;
 }

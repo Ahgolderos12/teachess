@@ -335,6 +335,7 @@ def serve(
             anthropic_client=_anthropic_client if api_key else None,
             static_dir=WEB_DIST,
             allowed_hosts=allowed_hosts,
+            sync_hours=settings.sync_hours,
         )
     )
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}"

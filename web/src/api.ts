@@ -12,6 +12,8 @@ import type {
   PlayerStats,
   PositionEvaluation,
   Status,
+  SyncResult,
+  SyncStatus,
 } from "./types";
 
 export class ApiError extends Error {
@@ -66,6 +68,8 @@ export const api = {
   stats: (user: string) => request<PlayerStats>(`/api/users/${encodeURIComponent(user)}/stats`),
   diagnosis: (user: string, window = 20) =>
     request<Diagnosis>(`/api/users/${encodeURIComponent(user)}/diagnosis?window=${window}`),
+  sync: () => request<SyncStatus>("/api/sync"),
+  syncNow: () => post<Job<SyncResult>>("/api/sync", {}),
   job: <R>(id: string) => request<Job<R>>(`/api/jobs/${encodeURIComponent(id)}`),
   startImport: (body: {
     platform: Platform;

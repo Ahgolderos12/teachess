@@ -452,6 +452,12 @@ textarea {
   white-space: nowrap;
 }
 
+.pill-muted {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .pill-ok {
   background: var(--accent-soft);
   color: var(--accent-strong);
@@ -686,6 +692,22 @@ textarea {
   height: 0.8rem;
   border-radius: 3px;
   vertical-align: middle;
+}
+
+/* --- sync ------------------------------------------------------------------------------ */
+
+.sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.spinner-small {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-width: 2px;
+  vertical-align: -1px;
 }
 
 /* --- statistics ------------------------------------------------------------------------ */
