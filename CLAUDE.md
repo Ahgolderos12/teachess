@@ -84,6 +84,9 @@ Decisiones de la Fase 2 (plan completo en `docs/PHASE_2_PLAN.md`):
 - Máximo 8 rondas de herramientas por turno. Un rechazo se avisa y se borra del historial. La conversación no se guarda (memoria: Fase 3).
 - Las consultas al motor usan la profundidad con que se analizó la partida, para aprovechar la caché.
 - Los tests sustituyen `cli._anthropic_client` por `FakeAnthropic` (`tests/fakes.py`); nunca llaman a la API.
+- **Dos formas de usar el coach** (2026-11-25): el usuario no quiere pagar por uso del LLM, y su suscripción de Claude no cubre la API. Vía por defecto: `teachess mcp`, un servidor MCP (SDK oficial `mcp` 2.x, `MCPServer`) que se usa desde Claude Code con la suscripción del usuario (coste 0); se registra en `.mcp.json` y se arranca con el prompt MCP `coach` (`/mcp__teachess__coach <id>`). La vía `teachess coach` (Messages API, de pago por tokens) se mantiene para cuando haya más usuarios. No conectar el login de la suscripción a la app ni al Agent SDK (la documentación de Anthropic lo prohíbe en productos de terceros).
+- En MCP las herramientas de partida reciben `game_id`, hay una herramienta `list_games`, y las del motor aceptan un `game_id` opcional para analizar a la misma profundidad que el análisis guardado (si no, contradirían el informe). El prompt de sistema es el mismo en las dos vías (`coach/prompts.py`).
+- No gastar créditos de la API sin permiso explícito del usuario.
 
 ## Fuentes de datos
 
@@ -152,7 +155,8 @@ uv run teachess import --platform chesscom|lichess [--user <usuario>] [--max-gam
 uv run teachess import --platform pgn --file <archivo.pgn> --user <nombre> [--color white|black]
 uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
 uv run teachess report --user <usuario> | --game <id>
-uv run teachess coach --game <id>          # chat con el coach (requiere ANTHROPIC_API_KEY)
+uv run teachess mcp                        # servidor MCP del coach (lo arranca Claude Code, ver .mcp.json)
+uv run teachess coach --game <id>          # chat con el coach por API (de pago, requiere ANTHROPIC_API_KEY)
 ```
 
 ## Configuración y secretos

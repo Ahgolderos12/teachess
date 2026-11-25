@@ -76,6 +76,7 @@ Modificados:
 2. Modelo por defecto `claude-opus-5-5` (configurable con `TEACHESS_MODEL`).
 3. Respaldo automático ante rechazos activado (`fallbacks: "default"`).
 4. Se mantienen los umbrales 10/20/30 de la Fase 1.
+5. **Coste 0 para el uso diario**: el coach se usa desde Claude Code con la suscripción, mediante el servidor MCP `teachess mcp`. La vía por API (`teachess coach`) queda lista para cuando haya más usuarios. Se puede cambiar en cualquier momento.
 
 ## Coste estimado (2026-11-25)
 
@@ -92,3 +93,11 @@ Estimación a partir de los tamaños reales con la partida #6 (aprox. 3,6 caract
 | Claude Code + servidor MCP (suscripción) | 0 $ (consume límites del plan) | 0 $ |
 
 La suscripción de Claude no incluye la API, y la documentación del Agent SDK pide usar claves de API (no el login de claude.ai) en las aplicaciones construidas con él. La vía gratuita permitida es usar las herramientas como servidor MCP desde Claude Code.
+
+## Uso desde Claude Code (coste 0)
+
+1. Abrir Claude Code en la carpeta del proyecto. La primera vez pedirá aprobar el servidor MCP `teachess` del archivo `.mcp.json`; con `/mcp` se comprueba que está conectado.
+2. Escribir `/mcp__teachess__coach 6` (el número es el ID de la partida; se ven con `uv run teachess report --user <usuario>`).
+3. Conversar. El coach consulta las herramientas de Teachess (partida y Stockfish) y no calcula por su cuenta.
+
+Consume de los límites de uso de la suscripción, no dinero. Las consultas al motor sin `game_id` usan `TEACHESS_DEPTH`.

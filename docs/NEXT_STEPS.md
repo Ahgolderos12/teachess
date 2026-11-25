@@ -5,8 +5,8 @@
 ## Dónde estamos
 
 - La **Fase 1 está implementada** en la rama `phase-1-pipeline`, con el PR #1 abierto hacia `main`.
-- La **Fase 2 (coach) está implementada** en la rama `phase-2-coach`, a falta de probarla con la API real (sección 3).
-- Hay 72 tests y pasan, igual que `ruff` y `mypy`.
+- La **Fase 2 (coach) está implementada** en la rama `phase-2-coach` (PR #2). Se usa gratis desde Claude Code mediante un servidor MCP (sección 3).
+- Hay 83 tests y pasan, igual que `ruff` y `mypy`.
 - **Clasificación por probabilidad de victoria implementada** (2026-11-25). La base local se migró a la versión 2 del esquema: con tus 10 partidas, errores graves 19 → 7, errores 56 → 9, imprecisiones 33 → 27 (igual que la simulación). Un `analyze --reanalyze --depth 14` desde caché da exactamente lo mismo que la migración.
 - Probado de punta a punta con Stockfish real usando un archivo PGN local.
 - **Chess.com probado con datos reales** (2026-10-28, Mac personal, usuario `ahgolderos`): 10 partidas importadas, reimportar no duplica, color/rival/resultado coinciden con la API, análisis a profundidad 14 en ~1 min. Falta comparar los errores graves con el análisis de Chess.com.
@@ -76,14 +76,16 @@ Opcional, propuesto y sin decidir: mostrar en el informe la profundidad de la re
 
 ## 3. Fase 2: coach conversacional sobre una partida
 
-**Implementada en la rama `phase-2-coach`** (2026-11-25), sobre `phase-1-pipeline`. 72 tests (con un cliente de Anthropic falso), `ruff` y `mypy` sin errores. Plan y decisiones en `docs/PHASE_2_PLAN.md`.
+**Implementada en la rama `phase-2-coach`** (PR #2, apilado sobre el #1). 83 tests (sin llamadas a la API), `ruff` y `mypy` sin errores. Plan, decisiones y coste estimado en `docs/PHASE_2_PLAN.md`.
+
+Dos vías:
+- **Claude Code + servidor MCP (coste 0, la elegida)**: probada de punta a punta con el cliente MCP oficial, tu base de datos y Stockfish real. Falta probarla dentro de Claude Code: abrir Claude Code en esta carpeta, aprobar el servidor `teachess` y escribir `/mcp__teachess__coach 6`.
+- **`teachess coach` por API (de pago)**: lista para cuando haya más usuarios; sin probar con la API real (no se gasta sin permiso).
 
 Falta:
-- [ ] Poner `ANTHROPIC_API_KEY` en `.env` y probar con la API real: `uv run teachess coach --game 6`. Comprobar que no inventa jugadas, que usa `evaluate_move` en las preguntas «¿y si…?» y el coste por sesión (tokens al salir).
-- [ ] Ajustar el prompt según esa prueba.
-- [ ] Fusionar la Fase 1 y después abrir el PR de la Fase 2. Se apoyará en lo que ya existe:
-- `get_game` y `get_critical_moments` leen las tablas `games` y `move_analysis` (`db/repository.py`).
-- `evaluate_position` usa `StockfishEngine` + `PersistentCacheEngine` (`engine/`).
+- [ ] Primera sesión real con `/mcp__teachess__coach 6` en Claude Code: comprobar que no inventa jugadas, que usa `evaluate_move` en las preguntas «¿y si…?» y que pasa el `game_id`.
+- [ ] Ajustar el prompt (`coach/prompts.py`) según esa prueba.
+- [ ] Fusionar el PR #1 y después el #2.
 
 ## Mejoras abiertas (sin decidir)
 
