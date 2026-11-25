@@ -44,14 +44,38 @@ Comprobar:
 
 - [x] Prueba real con Chess.com correcta (falta Lichess, opcional).
 - [x] Clasificar errores por probabilidad de victoria (`engine/scoring.py`, esquema v2 con `win_loss`, columnas «Pérdida %» y «Pérdida cp» en el informe por partida).
-- [ ] Revisar a ojo el informe de alguna partida (`report --game 6`, por ejemplo) y compararlo con Chess.com.
-- [ ] Fusionar `phase-1-pipeline` en `main`.
+- [x] Comparado con Chess.com en la partida #6 (2026-11-25), ver abajo.
+- [ ] Fusionar `phase-1-pipeline` en `main`: PR abierto, https://github.com/Ahgolderos12/teachess/pull/1.
+
+### Comparación con Chess.com (partida #6)
+
+| Jugada | Chess.com | Teachess | Pérdida % |
+|---|---|---|---|
+| 7 | imprecisión | imprecisión | 12,4 |
+| 10 | error | imprecisión | 15,9 |
+| 11 | error grave | error grave | 46,9 |
+| 12 | imprecisión | — | 7,9 |
+| 13 | error | imprecisión | 12,7 |
+| 15 | error | — | 8,4 |
+| 23 | error grave | imprecisión | 16,9 |
+| 27 | imprecisión | — | 4,1 |
+| 29 | imprecisión | — | 5,6 |
+| 40 | imprecisión | imprecisión | 10,2 |
+| 43 | error | error | 20,3 |
+| 53 | oportunidad perdida | error grave | 33,9 |
+| 68 | error grave | error grave | 43,2 |
+
+- Todo lo que marca Teachess lo marca también Chess.com (ningún falso positivo), y los errores decisivos (11, 53, 68) coinciden.
+- Teachess es más indulgente: no marca 4 jugadas pequeñas (4-8 %) en posiciones ya perdidas (−3,4 a −5), y baja un nivel 10, 13 y 23.
+- Chess.com usa umbrales de «puntos esperados» que equivalen más o menos a la mitad (≈ 5/10/20) y un modelo que depende del rating. Con 5/10/20 en las 10 partidas: graves 16, errores 27, imprecisiones 36. En la partida #6 no mejora el acuerdo (6 de 12 frente a 5 de 12): sube unas jugadas y pasa de largo otras.
+- La 23 (−2,7 → −5,9) es la mayor discrepancia: probablemente es la evaluación de Chess.com, no el umbral.
+- **Sin decidir**: mantener 10/20/30 (más humano y coherente con el principio de no castigar posiciones decididas) o bajar a 5/10/20 (más parecido a Chess.com). Es un cambio de tres constantes en `engine/scoring.py` y una reclasificación sin motor.
 
 Opcional, propuesto y sin decidir: mostrar en el informe la profundidad de la refutación de cada error (principio «Juzgar con criterio humano» de `CLAUDE.md`).
 
 ## 3. Fase 2: coach conversacional sobre una partida
 
-Pedir a Claude que prepare el plan de la Fase 2 (ver `CLAUDE.md`). Se apoyará en lo que ya existe:
+**Plan propuesto en `docs/PHASE_2_PLAN.md`, pendiente de aprobación** (y de responder sus preguntas abiertas). Se apoyará en lo que ya existe:
 - `get_game` y `get_critical_moments` leen las tablas `games` y `move_analysis` (`db/repository.py`).
 - `evaluate_position` usa `StockfishEngine` + `PersistentCacheEngine` (`engine/`).
 
