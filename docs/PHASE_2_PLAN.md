@@ -1,6 +1,6 @@
 # Plan de la Fase 2: coach conversacional sobre una partida
 
-Estado: **propuesta, pendiente de aprobación** (2026-11-25).
+Estado: **aprobado** (2026-11-25), en implementación.
 
 ## Objetivo
 
@@ -70,9 +70,9 @@ Modificados:
 4. Comando `coach` en la CLI.
 5. Documentación y prueba real.
 
-## Preguntas abiertas
+## Decisiones tomadas (2026-11-25)
 
-1. ¿Te vale un chat en la terminal para esta fase?
-2. ¿Modelo por defecto `claude-opus-5-5`? Es el más capaz de su gama; `claude-sonnet-5-5` cuesta la mitad. En cualquier caso se cambia con `TEACHESS_MODEL`.
-3. ¿Activamos el *fallback* ante rechazos (decisión 3)?
-4. Recalibrar umbrales frente a Chess.com (ver `NEXT_STEPS.md`): ¿lo hacemos antes de la Fase 2 o lo dejamos para después?
+1. Chat interactivo en la terminal.
+2. Modelo por defecto `claude-opus-5-5` (configurable con `TEACHESS_MODEL`).
+3. Respaldo automático ante rechazos activado (`fallbacks: "default"`).
+4. Se mantienen los umbrales 10/20/30 de la Fase 1.
