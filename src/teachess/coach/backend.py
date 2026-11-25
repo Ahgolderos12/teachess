@@ -18,6 +18,8 @@ from teachess.coach.tools import LEVELS, EngineTools, GameTools, ToolInputError
 from teachess.db import repository as repo
 from teachess.engine.analysis import PersistentCacheEngine
 from teachess.engine.models import Engine, PositionEval
+from teachess.patterns.diagnosis import DEFAULT_WINDOW, diagnose
+from teachess.patterns.facts import load_facts
 from teachess.report.builder import load_game_report
 
 
@@ -68,6 +70,26 @@ class CoachBackend:
                     row["user_mistakes"] = {level: report.counts[level] for level in LEVELS}
                 rows.append(row)
         return {"games": rows}
+
+    def resolve_user(self, username: str | None) -> str:
+        """The given player, or the one with the most recent games."""
+        with self.connection() as conn:
+            users = repo.list_usernames(conn)
+        if not users:
+            raise ToolInputError("No hay partidas importadas.")
+        if username is None:
+            return users[0]
+        match = next((u for u in users if u.lower() == username.strip().lower()), None)
+        if match is None:
+            raise ToolInputError(f"No hay partidas de {username}. Jugadores: {', '.join(users)}.")
+        return match
+
+    def diagnosis(self, username: str | None, window: int = DEFAULT_WINDOW) -> dict[str, Any]:
+        """Recurring patterns in the player's latest analysed games (no engine calls)."""
+        user = self.resolve_user(username)
+        with self.connection() as conn:
+            facts = load_facts(conn, user)
+        return {"user": user, **diagnose(facts, max(5, min(window, 100)))}
 
     def game(self, game_id: int) -> GameTools:
         with self.connection() as conn:

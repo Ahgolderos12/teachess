@@ -82,6 +82,8 @@ def test_lists_tools_and_games(server: MCPServer) -> None:
         "get_move",
         "evaluate_position",
         "evaluate_move",
+        "show_position",
+        "get_player_diagnosis",
     ]
     games = call(server, "list_games")["games"]
     assert [g["analyzed"] for g in games] == [False, True]  # newest first (same date: by id)
@@ -147,3 +149,39 @@ def test_coach_prompt_starts_a_session(server: MCPServer) -> None:
     assert "3...Nf6" in text and "<datos_partida>" in text
     missing = asyncio.run(server.get_prompt("coach", {"game_id": "2"})).messages[0].content.text
     assert "no existe o no está analizada" in missing and "list_games" in missing
+
+
+def test_show_position_draws_the_board_from_the_players_side(server: MCPServer) -> None:
+    white = call(server, "show_position", fen=FEN_BEFORE_NF6)["diagram"].splitlines()
+    assert white[0] == "8  r . b q k b n r"
+    assert white[-1] == "   a b c d e f g h"
+    black = call(server, "show_position", fen=FEN_BEFORE_NF6, orientation="black")["diagram"]
+    assert black.splitlines()[0] == "1  R N . K . B N R"
+    assert black.splitlines()[-1] == "   h g f e d c b a"
+    with pytest.raises(ToolError, match="FEN no válido"):
+        asyncio.run(server.call_tool("show_position", {"fen": "x"}))
+
+
+def test_player_diagnosis(server: MCPServer) -> None:
+    result = call(server, "get_player_diagnosis")
+    assert result["user"] == "alice"
+    assert result["games_total"] == 2 and result["games_analysed"] == 1
+    assert result["overview"]["record"]["losses"] == 1
+    assert call(server, "get_player_diagnosis", user="ALICE")["user"] == "alice"
+    with pytest.raises(ToolError, match="No hay partidas de nadie"):
+        asyncio.run(server.call_tool("get_player_diagnosis", {"user": "nadie"}))
+
+
+def test_teacher_prompt_opens_the_lesson_with_the_diagnosis(server: MCPServer) -> None:
+    text = asyncio.run(server.get_prompt("teacher", {})).messages[0].content.text
+    assert text.startswith("Eres Teachess, el profesor personal")
+    assert "<diagnostico>" in text and '"user": "alice"' in text
+    assert "show_position" in text
+
+
+def test_teacher_prompt_without_games(tmp_path: Path, opener: EngineOpener) -> None:
+    empty = tmp_path / "empty.sqlite"
+    repo.connect(empty).close()
+    server = build_server(CoachBackend(empty, 16, opener))
+    text = asyncio.run(server.get_prompt("teacher", {})).messages[0].content.text
+    assert "No hay partidas importadas" in text and "teachess import" in text

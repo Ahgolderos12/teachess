@@ -50,7 +50,7 @@ teachess/
 ├── src/teachess/
 │   ├── ingest/        # clientes Chess.com / Lichess, importación de PGN
 │   ├── engine/        # wrapper de Stockfish, análisis por jugada
-│   ├── patterns/      # extracción de patrones y métricas del jugador
+│   ├── patterns/      # hechos por partida, estadísticas y diagnóstico de patrones
 │   ├── memory/        # perfil estructurado + memoria conversacional
 │   ├── coach/         # agente (Claude) + definición de tools + prompts
 │   ├── training/      # plan semanal, ejercicios, repetición espaciada
@@ -67,7 +67,7 @@ teachess/
 
 Ajustar la estructura si hay una razón clara; documentar el cambio aquí.
 
-Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`), Fase 2 implementada (`coach/`) y aplicación web (`api/`, `web/`), que adelanta la API de la Fase 4 y la interfaz de la Fase 5 a petición del usuario. `patterns/`, `memory/` y `training/` se crean al llegar a su fase.
+Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`), Fase 2 implementada (`coach/`) y aplicación web (`api/`, `web/`), que adelanta la API de la Fase 4 y la interfaz de la Fase 5 a petición del usuario. En marcha el **Teacher** (profesor proactivo, plan en `docs/TEACHER_PLAN.md`), acordado con el usuario el 2026-11-25: adelanta `patterns/` (Fase 3). `memory/` y `training/` se crean al llegar a su paso.
 
 Decisiones de la Fase 1:
 - Clasificación por caída de probabilidad de victoria de quien mueve (fórmula de Lichess sobre centipeones recortados a ±1000; un mate forzado o dado cuenta como 0 % o 100 %). Umbrales en puntos porcentuales: imprecisión ≥ 10, error ≥ 20, error grave ≥ 30 (`engine/scoring.py`, columna `win_loss`). Así no se castigan jugadas imperfectas en posiciones ya decididas.
@@ -89,6 +89,13 @@ Decisiones de la Fase 2 (plan completo en `docs/PHASE_2_PLAN.md`):
 - **Dos formas de usar el coach** (2026-11-25): el usuario no quiere pagar por uso del LLM, y su suscripción de Claude no cubre la API. Vía por defecto: `teachess mcp`, un servidor MCP (SDK oficial `mcp` 2.x, `MCPServer`) que se usa desde Claude Code con la suscripción del usuario (coste 0); se registra en `.mcp.json` y se arranca con el prompt MCP `coach` (`/mcp__teachess__coach <id>`). La vía `teachess coach` (Messages API, de pago por tokens) se mantiene para cuando haya más usuarios. No conectar el login de la suscripción a la app ni al Agent SDK (la documentación de Anthropic lo prohíbe en productos de terceros).
 - En MCP las herramientas de partida reciben `game_id`, hay una herramienta `list_games`, y las del motor aceptan un `game_id` opcional para analizar a la misma profundidad que el análisis guardado (si no, contradirían el informe). El prompt de sistema es el mismo en las dos vías (`coach/prompts.py`).
 - No gastar créditos de la API sin permiso explícito del usuario.
+
+Decisiones del Teacher (plan en `docs/TEACHER_PLAN.md`):
+- El diagnóstico es determinista (`patterns/`): `facts.py` saca hechos por partida (resultado, motivo de fin, reloj y tiempo por jugada, ELO, familia de apertura, curva de probabilidad de victoria) y `diagnosis.py` tiene un detector por patrón (derrotas en la apertura, apuros de tiempo, errores rápidos con tiempo de sobra, ventajas ganadoras que se escapan, fase más débil, aperturas con mal resultado). El LLM elige y explica; no saca conclusiones estadísticas.
+- «Error decisivo»: el primer error (≥ 20 puntos de pérdida) tras el cual la probabilidad de victoria del jugador no vuelve a superar el 50 %. Los hallazgos se ordenan por puntos perdidos en las partidas que ese patrón decidió; un patrón necesita al menos 2 partidas.
+- Ventana por defecto: las 20 últimas partidas analizadas; las aperturas usan todas las partidas terminadas (solo necesitan las cabeceras del PGN).
+- Prompt MCP `teacher` (`/mcp__teachess__teacher`): abre la clase solo, con el diagnóstico embebido, y empieza por un ejemplo práctico de las partidas del jugador en modo socrático. Herramientas nuevas: `get_player_diagnosis` y `show_position` (diagrama en texto para la terminal).
+- Decididos y pendientes: el Informe de la web pasará a ser la pestaña Estadísticas (ampliada); sincronización con Chess.com al arrancar `serve` y cada 6 h; pestaña Teacher con Claude Code en una terminal embebida (PTY + WebSocket, comprobando `Origin` y un token, y limitada a las herramientas `mcp__teachess__*`).
 
 Decisiones de la aplicación web (plan en `docs/WEB_PLAN.md`):
 - `uv run teachess serve` levanta la API y la web compilada (`web/dist`) en `http://127.0.0.1:8000`. Solo escucha en local y rechaza cabeceras `Host` ajenas.
@@ -170,6 +177,7 @@ uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
 uv run teachess report --user <usuario> | --game <id>
 uv run teachess serve [--port 8000]        # aplicación web en http://127.0.0.1:8000
 uv run teachess mcp                        # servidor MCP del coach (lo arranca Claude Code, ver .mcp.json)
+# En Claude Code: /mcp__teachess__teacher (clase guiada) o /mcp__teachess__coach <id> (una partida)
 uv run teachess coach --game <id>          # chat con el coach por API (de pago, requiere ANTHROPIC_API_KEY)
 ```
 

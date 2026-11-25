@@ -25,7 +25,7 @@ uv run teachess serve
 
 Se abre en `http://127.0.0.1:8000`: importar partidas, analizarlas con Stockfish, revisar cada partida en el tablero (errores, mejor jugada, gráfica de evaluación, explorador para probar jugadas) y ver tu informe.
 
-El coach es gratis desde Claude Code (`/mcp__teachess__coach <id>`, con tu suscripción). El chat dentro de la web usa la API de pago de Anthropic y solo se activa si pones `ANTHROPIC_API_KEY` en `.env`.
+El profesor es gratis desde Claude Code con tu suscripción: `/mcp__teachess__teacher` empieza una clase guiada por tus últimas partidas y `/mcp__teachess__coach <id>` revisa una partida concreta. El chat dentro de la web usa la API de pago de Anthropic y solo se activa si pones `ANTHROPIC_API_KEY` en `.env`.
 
 ## Uso desde la terminal
 

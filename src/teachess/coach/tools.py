@@ -279,6 +279,35 @@ class EngineTools:
         }
 
 
+def show_position(fen: str, orientation: str = "white") -> dict[str, Any]:
+    """Text diagram of a position, for clients without a board (e.g. a terminal)."""
+    if orientation not in ("white", "black"):
+        raise ToolInputError("orientation debe ser white o black.")
+    board = _parse_fen(fen)
+    return {
+        "fen": board.fen(),
+        "side_to_move": _color(board.turn),
+        "diagram": board_diagram(board, chess.WHITE if orientation == "white" else chess.BLACK),
+        "legend": "Mayúsculas: blancas; minúsculas: negras (K rey, Q dama, R torre, B alfil, "
+        "N caballo, P peón); punto: casilla vacía.",
+    }
+
+
+def board_diagram(board: chess.Board, orientation: chess.Color = chess.WHITE) -> str:
+    """ASCII board with rank and file labels, seen from `orientation`."""
+    ranks = range(7, -1, -1) if orientation == chess.WHITE else range(8)
+    files = list(range(8)) if orientation == chess.WHITE else list(range(7, -1, -1))
+    lines = []
+    for rank in ranks:
+        cells = []
+        for file in files:
+            piece = board.piece_at(chess.square(file, rank))
+            cells.append(piece.symbol() if piece else ".")
+        lines.append(f"{rank + 1}  {' '.join(cells)}")
+    lines.append("   " + " ".join(chess.FILE_NAMES[f] for f in files))
+    return "\n".join(lines)
+
+
 def _error(message: str) -> ToolResult:
     return ToolResult(json.dumps({"error": message}, ensure_ascii=False), is_error=True)
 

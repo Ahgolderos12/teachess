@@ -11,8 +11,13 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from teachess.coach.backend import CoachBackend
-from teachess.coach.prompts import mcp_coach_prompt, mcp_missing_game_prompt
-from teachess.coach.tools import TOOL_DEFINITIONS, ToolInputError
+from teachess.coach.prompts import (
+    mcp_coach_prompt,
+    mcp_missing_game_prompt,
+    mcp_teacher_prompt,
+    mcp_teacher_unavailable_prompt,
+)
+from teachess.coach.tools import TOOL_DEFINITIONS, ToolInputError, show_position
 
 DESCRIPTIONS = {tool["name"]: tool["description"] for tool in TOOL_DEFINITIONS}
 GAME_ID_NOTE = " Requiere game_id (ver list_games)."
@@ -31,7 +36,8 @@ def build_server(backend: CoachBackend) -> MCPServer:
         instructions=(
             "Herramientas de ajedrez de Teachess: partidas del jugador analizadas con Stockfish "
             "y consultas al motor. Los hechos ajedrecísticos salen de aquí, no del modelo. "
-            "Usa el prompt `coach` para empezar una sesión de entrenamiento sobre una partida."
+            "Usa el prompt `teacher` para una clase guiada por el diagnóstico del jugador, o "
+            "`coach` para revisar una partida concreta."
         ),
     )
 
@@ -68,6 +74,44 @@ def build_server(backend: CoachBackend) -> MCPServer:
                 return tools.evaluate_move(fen, move)
 
         return _call(run)
+
+    @server.tool(
+        name="show_position",
+        description=(
+            "Diagrama en texto de una posición (FEN), para enseñarla en una terminal. "
+            "orientation: el color del jugador, para verla desde su lado."
+        ),
+    )
+    def show_position_tool(fen: str, orientation: Color = "white") -> dict[str, Any]:
+        return _call(lambda: show_position(fen, orientation))
+
+    @server.tool(
+        description=(
+            "Diagnóstico del jugador sobre sus últimas partidas analizadas: resultados y "
+            "patrones medidos (derrotas en la apertura, apuros de tiempo, errores por jugar "
+            "rápido, ventajas que se escapan, fase más débil, aperturas con mal resultado), "
+            "con cifras y posiciones de ejemplo. window: número de partidas recientes (5-100). "
+            "user: jugador (por defecto, el de las partidas más recientes)."
+        )
+    )
+    def get_player_diagnosis(window: int = 20, user: str | None = None) -> dict[str, Any]:
+        return _call(lambda: backend.diagnosis(user, window))
+
+    @server.prompt(
+        name="teacher",
+        description=(
+            "Clase con el profesor de Teachess: estudia tus últimas partidas y empieza la "
+            "lección por lo que más te conviene trabajar."
+        ),
+    )
+    def teacher(user: str | None = None) -> str:
+        try:
+            diagnosis = backend.diagnosis(user)
+        except ToolInputError as exc:
+            return mcp_teacher_unavailable_prompt(str(exc))
+        if diagnosis["window"]["games"] == 0:
+            return mcp_teacher_unavailable_prompt("no hay partidas analizadas.")
+        return mcp_teacher_prompt(diagnosis)
 
     @server.prompt(
         name="coach",
