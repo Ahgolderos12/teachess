@@ -8,7 +8,7 @@ import chess
 
 from teachess.db import repository as repo
 from teachess.db.repository import StoredGame
-from teachess.engine.models import Classification, MoveAnalysis, Phase
+from teachess.engine.models import CHECKMATE_CP, Classification, MoveAnalysis, Phase, PositionEval
 
 ERROR_CLASSES: tuple[Classification, ...] = ("inaccuracy", "mistake", "blunder")
 PHASES: tuple[Phase, ...] = ("opening", "middlegame", "endgame")
@@ -104,13 +104,31 @@ def move_label(move: MoveAnalysis) -> str:
 
 
 def best_line_san(move: MoveAnalysis, max_plies: int = 5) -> str:
-    """Engine's principal variation in SAN, cut at the first illegal move."""
-    board = chess.Board(move.fen_before)
+    """Engine's principal variation for the position before the move, in SAN."""
+    return line_san(move.fen_before, move.eval_before.pv, max_plies)
+
+
+def line_san(fen: str, pv: tuple[str, ...], max_plies: int = 5) -> str:
+    """A UCI line in SAN from the given position, cut at the first illegal move."""
+    board = chess.Board(fen)
     line: list[chess.Move] = []
-    for uci in move.eval_before.pv[:max_plies]:
-        candidate = chess.Move.from_uci(uci)
+    for uci in pv[:max_plies]:
+        try:
+            candidate = chess.Move.from_uci(uci)
+        except ValueError:
+            break
         if not board.is_legal(candidate):
             break
         line.append(candidate)
         board.push(candidate)
-    return chess.Board(move.fen_before).variation_san(line) if line else ""
+    return chess.Board(fen).variation_san(line) if line else ""
+
+
+def format_eval(evaluation: PositionEval) -> str:
+    """White's point of view: '+0.35', '-1.20', '#3', '#-2'."""
+    if evaluation.mate is not None:
+        return f"#{evaluation.mate}"
+    cp = evaluation.cp or 0
+    if abs(cp) >= CHECKMATE_CP:  # checkmate already on the board
+        return "1-0" if cp > 0 else "0-1"
+    return f"{cp / 100:+.2f}"

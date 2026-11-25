@@ -3,7 +3,7 @@
 from rich.console import Console
 from rich.table import Table
 
-from teachess.engine.models import CHECKMATE_CP, Classification, Phase, PositionEval
+from teachess.engine.models import Classification, Phase
 from teachess.ingest.models import ImportedGame
 from teachess.report.builder import (
     ERROR_CLASSES,
@@ -11,6 +11,7 @@ from teachess.report.builder import (
     GameReport,
     UserReport,
     best_line_san,
+    format_eval,
     move_label,
 )
 
@@ -37,16 +38,6 @@ CLASS_PLURALS: dict[Classification, str] = {
     "blunder": "errores graves",
 }
 PLATFORM_LABELS = {"chesscom": "Chess.com", "lichess": "Lichess", "pgn": "PGN"}
-
-
-def format_eval(evaluation: PositionEval) -> str:
-    """White's point of view: '+0.35', '-1.20', '#3', '#-2'."""
-    if evaluation.mate is not None:
-        return f"#{evaluation.mate}"
-    cp = evaluation.cp or 0
-    if abs(cp) >= CHECKMATE_CP:  # checkmate already on the board
-        return "1-0" if cp > 0 else "0-1"
-    return f"{cp / 100:+.2f}"
 
 
 def render_game_report(report: GameReport, console: Console) -> None:
