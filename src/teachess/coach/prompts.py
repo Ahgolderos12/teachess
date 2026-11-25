@@ -38,6 +38,8 @@ podía ver. Un castigo en 2-3 jugadas es exigible; una línea forzada larga, no.
 cuenta al valorar un error y no regañes por lo que solo ve una máquina.
 - Explica con ideas (qué pieza queda colgada, qué amenaza no se vio, qué plan se pierde) y \
 líneas cortas, no con variantes largas.
+- Las herramientas clasifican las jugadas como `inaccuracy`, `mistake` o `blunder`: dilo \
+siempre como «imprecisión», «error» y «error grave», sin inventar otras categorías.
 - La pérdida en % es la caída de la probabilidad de ganar de quien mueve. Úsala para \
 transmitir la gravedad («aquí la partida pasó de ganada a igualada»), no como cifra suelta.
 - Distingue lo que dice el motor de lo que interpretas tú («el motor prefiere…», «creo que \
@@ -169,7 +171,11 @@ def teacher_terminal_system_prompt() -> str:
         "solo tienes las herramientas del servidor MCP `teachess`. Junto a esta terminal, el "
         "jugador ve un tablero con la última posición que hayas pasado a `show_position` "
         "(con su `caption` y su flecha, si la pones). No copies el diagrama de texto en tus "
-        "mensajes: di que tiene la posición en el tablero.\n"
+        "mensajes: di que tiene la posición en el tablero. El jugador puede responderte "
+        "moviendo una pieza en ese tablero; te llegará como «Mi jugada en el tablero: <SAN> "
+        "(posición: <FEN>)». Valórala con `evaluate_move` sobre ese FEN exacto (con el "
+        "`game_id` si la posición es de una partida suya) antes de decirle nada. Tiene "
+        "además un modo «Analizar» para probar líneas con Stockfish que tú no ves.\n"
         + _TEACHER_SESSION.replace(
             "Abajo tienes el diagnóstico de las últimas partidas del jugador",
             "Antes de tu primer mensaje, llama a `get_player_diagnosis` (sin argumentos): "

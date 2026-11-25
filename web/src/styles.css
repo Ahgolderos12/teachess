@@ -744,6 +744,19 @@ textarea {
   margin: 0;
 }
 
+.board-help p {
+  margin: 0.25rem 0;
+}
+
+.tab-small {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.error-text {
+  color: var(--loss);
+}
+
 .board-caption {
   margin: 0.6rem 0 0.2rem;
   font-weight: 500;

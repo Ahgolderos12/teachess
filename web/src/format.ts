@@ -149,3 +149,21 @@ export function movingAverage(values: (number | null)[], size: number): (number 
     return window.length ? window.reduce((a, b) => a + b, 0) / window.length : null;
   });
 }
+
+export function sideToMove(fen: string): "w" | "b" {
+  return fen.split(" ")[1] === "b" ? "b" : "w";
+}
+
+/** Numbered SAN line from a position: "20... Qd6 21. Qxd6 Bxd6". */
+export function lineText(fen: string, sans: string[]): string {
+  let black = sideToMove(fen) === "b";
+  let number = Number(fen.split(" ")[5] ?? 1);
+  return sans
+    .map((san, index) => {
+      const prefix = !black ? `${number}. ` : index === 0 ? `${number}... ` : "";
+      if (black) number += 1;
+      black = !black;
+      return prefix + san;
+    })
+    .join(" ");
+}

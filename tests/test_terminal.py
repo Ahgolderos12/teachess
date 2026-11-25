@@ -91,6 +91,7 @@ def test_claude_is_locked_down_and_never_gets_the_api_key() -> None:
     assert command[0] == "/bin/claude" and TERMINAL_START_MESSAGE not in command
     system = command[command.index("--append-system-prompt") + 1]
     assert "llama a `get_player_diagnosis`" in system and "<diagnostico>" not in system
+    assert "Mi jugada en el tablero" in system  # how board answers reach the teacher
     assert command[command.index("--tools") + 1] == ""  # no shell, no file tools
     assert "--strict-mcp-config" in command
     assert command[command.index("--allowedTools") + 1] == "mcp__teachess"

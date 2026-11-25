@@ -115,6 +115,12 @@ Hecho en la rama `teacher` (4 commits, sin subir): pasos 1-5 del plan.
   de punta a punta con Claude Code real en Chrome headless.
 - 137 tests de backend y 8 de frontend; `ruff`, `mypy` y `tsc` sin errores.
 
+Después (2026-11-25, a petición del usuario tras probarlo):
+- ELO **antes** de la partida estimado (Chess.com guarda el de después; confirmado).
+- Estadísticas **filtrables y comparables** (grupo A frente a B, comparaciones rápidas,
+  clic en gráficas para filtrar, lista de partidas del filtro).
+- **Tablero interactivo** en Teacher: responder moviendo una pieza y modo «Analizar».
+
 Para usarlo: `cd web && npm install && npm run build`, `uv sync` (nueva dependencia
 `websockets`) y reiniciar `uv run teachess serve`. Opcional en `.env`:
 `TEACHESS_TEACHER_MODEL=claude-opus-5-5` (con Haiku el profesor es flojo).

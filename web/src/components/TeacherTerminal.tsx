@@ -2,11 +2,14 @@ import "@xterm/xterm/css/xterm.css";
 
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import { type MutableRefObject, useEffect, useRef } from "react";
 
 import type { TerminalMessage } from "../types";
 
 export type TerminalState = "connecting" | "open" | "ended" | "error";
+
+/** Types a message into the terminal and presses Enter (false if not connected). */
+export type TerminalSender = (text: string) => boolean;
 
 /** Read a CSS custom property from the page theme, for xterm's own colour scheme. */
 function cssVar(name: string, fallback: string): string {
@@ -19,10 +22,12 @@ export function TeacherTerminal({
   token,
   session,
   onState,
+  senderRef,
 }: {
   token: string;
   session: number; // bump to start a new lesson
   onState: (state: TerminalState) => void;
+  senderRef?: MutableRefObject<TerminalSender | null>;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const stateRef = useRef(onState);
@@ -76,6 +81,21 @@ export function TeacherTerminal({
     };
     socket.onerror = () => stateRef.current("error");
 
+    if (senderRef) {
+      senderRef.current = (text) => {
+        if (socket.readyState !== WebSocket.OPEN) return false;
+        socket.send(JSON.stringify({ type: "input", data: text }));
+        // Enter as a separate keystroke, so Claude Code doesn't take it as part of a paste.
+        window.setTimeout(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "input", data: "\r" }));
+          }
+        }, 150);
+        term.focus();
+        return true;
+      };
+    }
+
     const input = term.onData((data) => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "input", data }));
@@ -91,12 +111,13 @@ export function TeacherTerminal({
     observer.observe(element);
 
     return () => {
+      if (senderRef) senderRef.current = null;
       observer.disconnect();
       input.dispose();
       socket.close();
       term.dispose();
     };
-  }, [token, session]);
+  }, [token, session, senderRef]);
 
   return <div className="terminal" ref={container} />;
 }
