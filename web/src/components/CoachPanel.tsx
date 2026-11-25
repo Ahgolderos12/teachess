@@ -73,7 +73,7 @@ function CoachChat({ gameId, model }: { gameId: number; model: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     sessionRef.current = null;
@@ -82,7 +82,9 @@ function CoachChat({ gameId, model }: { gameId: number; model: string }) {
   }, [gameId]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "nearest" });
+    // Follow the conversation inside the chat box only; never scroll the page.
+    const chat = chatRef.current;
+    if (chat) chat.scrollTop = chat.scrollHeight;
   }, [messages]);
 
   const updateLast = (change: (message: ChatMessage) => ChatMessage) =>
@@ -133,7 +135,7 @@ function CoachChat({ gameId, model }: { gameId: number; model: string }) {
       <p className="muted small">
         Usa la API de pago de Anthropic ({model}). Las jugadas y evaluaciones salen de Stockfish.
       </p>
-      <div className="chat" aria-live="polite">
+      <div className="chat" aria-live="polite" ref={chatRef}>
         {messages.length === 0 && (
           <p className="muted">Pregunta, por ejemplo: «¿Cuál fue mi peor error y por qué?»</p>
         )}
@@ -159,7 +161,6 @@ function CoachChat({ gameId, model }: { gameId: number; model: string }) {
             {m.error && <Alert kind="error">{m.error}</Alert>}
           </div>
         ))}
-        <div ref={endRef} />
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       <form className="chat-form" onSubmit={send}>

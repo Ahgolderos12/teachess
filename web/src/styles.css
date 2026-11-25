@@ -767,6 +767,7 @@ textarea {
   position: relative;
   width: 22px;
   border-radius: 4px;
+  border: 1px solid var(--border);
   overflow: hidden;
   background: #3a3a3a;
   display: flex;
@@ -793,11 +794,13 @@ textarea {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%) rotate(-90deg);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  color: #888;
+  color: #fff;
+  text-shadow:
+    0 0 2px #000,
+    0 0 3px #000;
   white-space: nowrap;
-  mix-blend-mode: difference;
 }
 
 .board-controls {
@@ -874,16 +877,13 @@ textarea {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 280px;
+  max-height: 300px;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 0.75rem;
 }
 
 .move-row {
   display: grid;
-  grid-template-columns: 2.4rem 1fr 1fr;
+  grid-template-columns: 2.6rem minmax(0, 7.5rem) minmax(0, 7.5rem);
   align-items: center;
 }
 
@@ -1105,6 +1105,7 @@ textarea {
 
 @media (max-width: 640px) {
   .header {
+    position: static;
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
     padding: 0.6rem 1rem;
@@ -1112,10 +1113,6 @@ textarea {
 
   .main {
     padding: 1rem;
-  }
-
-  .move-list {
-    grid-template-columns: 1fr;
   }
 
   .phase-row {

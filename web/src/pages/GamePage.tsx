@@ -23,6 +23,7 @@ import {
   formatTimeControl,
   PHASE_LABELS,
   PLATFORM_LABELS,
+  scrollWithin,
   uciSquares,
 } from "../format";
 import { useAsync } from "../hooks";
@@ -121,13 +122,19 @@ function GameView({ game, reload }: { game: GameDetail; reload: () => void }) {
 
   // Keep the current move visible in the move list.
   useEffect(() => {
-    document
-      .querySelector(`.move-list [data-ply="${current}"]`)
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    scrollWithin(
+      document.querySelector<HTMLElement>(".move-list"),
+      document.querySelector<HTMLElement>(`.move-list [data-ply="${current}"]`),
+    );
   }, [current]);
 
+  // The bar always describes the position on the board (before the move in "best move" view).
   const evaluation: Evaluation | null =
-    current === 0 ? game.start_eval : (analysis?.eval_after ?? null);
+    current === 0
+      ? game.start_eval
+      : showBest
+        ? (analysis?.eval_before ?? null)
+        : (analysis?.eval_after ?? null);
 
   // --- board -----------------------------------------------------------------------
 

@@ -99,3 +99,16 @@ export function uciSquares(uci: string | null | undefined): [string, string] | n
 export function evalBarShare(whiteWinPct: number): number {
   return Math.min(97, Math.max(3, whiteWinPct));
 }
+
+/** Scroll `container` so `element` is visible, without scrolling the page itself. */
+export function scrollWithin(container: HTMLElement | null, element: HTMLElement | null): void {
+  if (!container || !element) return;
+  const box = container.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
+  const top = rect.top - box.top + container.scrollTop;
+  const bottom = top + rect.height;
+  if (top < container.scrollTop) container.scrollTop = top;
+  else if (bottom > container.scrollTop + container.clientHeight) {
+    container.scrollTop = bottom - container.clientHeight;
+  }
+}
