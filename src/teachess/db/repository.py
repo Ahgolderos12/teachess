@@ -86,6 +86,15 @@ def list_games(
     return [_row_to_game(row) for row in rows]
 
 
+def list_usernames(conn: sqlite3.Connection) -> list[str]:
+    """Players with imported games, most recently played first."""
+    rows = conn.execute(
+        "SELECT username, MAX(COALESCE(played_at, '')) AS last FROM games "
+        "GROUP BY username ORDER BY last DESC, username"
+    ).fetchall()
+    return [row["username"] for row in rows]
+
+
 def _row_to_game(row: sqlite3.Row) -> StoredGame:
     game = ImportedGame(
         platform=row["platform"],

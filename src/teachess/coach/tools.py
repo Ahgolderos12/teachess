@@ -5,14 +5,12 @@ with python-chess; invalid input raises ToolInputError, which the agent reports 
 model as an error result so it can correct itself.
 """
 
-import io
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 import chess
-import chess.pgn
 
 from teachess.engine.models import Classification, Engine, MoveAnalysis
 from teachess.engine.scoring import classify, cp_loss, win_loss, win_percent
@@ -23,6 +21,7 @@ from teachess.report.builder import (
     line_san,
     move_label,
     mover,
+    opening_name,
 )
 
 MAX_LINE_PLIES = 5  # explanations use short lines, not long engine variations
@@ -177,7 +176,7 @@ class GameTools:
             "played_at": game.played_at,
             "time_control": game.time_control,
             "platform": game.platform,
-            "opening": _opening(game.pgn),
+            "opening": opening_name(game.pgn),
             "user_moves": len(self._report.user_moves),
             "user_acpl": None if self._report.acpl is None else round(self._report.acpl),
             "user_mistakes": {level: counts[level] for level in LEVELS},
@@ -274,6 +273,7 @@ class EngineTools:
             "win_loss_pct": round(drop, 1),
             "cp_loss": 0 if played_best else cp_loss(before, after, mover_color),
             "classification": classify(drop),
+            "fen_after": board.fen(),
             "best_reply_line": line_san(board.fen(), after.pv, MAX_LINE_PLIES),
             "depth": after.depth,
         }
@@ -315,16 +315,3 @@ def _parse_move(board: chess.Board, text: str) -> chess.Move:
 
 def _color(color: chess.Color) -> str:
     return "white" if color == chess.WHITE else "black"
-
-
-def _opening(pgn: str) -> str | None:
-    headers = chess.pgn.read_headers(io.StringIO(pgn))
-    if headers is None:
-        return None
-    name = headers.get("Opening")
-    if name:
-        return name
-    eco_url = headers.get("ECOUrl", "")  # Chess.com: .../openings/Sicilian-Defense-...
-    if "/openings/" in eco_url:
-        return eco_url.rsplit("/openings/", 1)[1].replace("-", " ")
-    return headers.get("ECO")

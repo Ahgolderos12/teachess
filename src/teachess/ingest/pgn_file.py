@@ -55,8 +55,13 @@ def pgn_date(game: chess.pgn.Game) -> str | None:
 
 def load_pgn_file(path: Path, username: str, color: Color | None = None) -> FetchResult:
     """Read OTB/other-platform games. `color` forces the user's side when names don't match."""
+    return load_pgn_text(path.read_text(encoding="utf-8-sig"), username, color)
+
+
+def load_pgn_text(text: str, username: str, color: Color | None = None) -> FetchResult:
+    """Parse PGN text (one or more games) for `username`."""
     result = FetchResult()
-    for game in parse_games(path.read_text(encoding="utf-8-sig")):
+    for game in parse_games(text.lstrip("\ufeff")):
         side = color or (user_color(game, username) if game else None)
         if game is None or side is None:
             result.skipped += 1

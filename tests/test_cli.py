@@ -182,3 +182,21 @@ def test_mcp_command_runs_the_stdio_server(monkeypatch: pytest.MonkeyPatch) -> N
     assert result.exit_code == 0, result.output
     assert transports == ["stdio"]
     assert result.stdout == ""  # stdout is reserved for the protocol
+
+
+def test_serve_builds_the_web_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    served: list[tuple[FastAPI, str, int]] = []
+    monkeypatch.setattr(cli, "_run_web", lambda app, host, port: served.append((app, host, port)))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    result = runner.invoke(cli.app, ["serve", "--no-open-browser", "--port", "8123"])
+    assert result.exit_code == 0, result.output
+    assert "http://127.0.0.1:8123" in result.output
+    app, host, port = served[0]
+    assert (host, port) == ("127.0.0.1", 8123)
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        status = client.get("/api/status").json()
+    assert status["coach"]["web_enabled"] is False
+    assert status["default_users"]["lichess"] == "alice"
