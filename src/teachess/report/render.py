@@ -3,7 +3,7 @@
 from rich.console import Console
 from rich.table import Table
 
-from teachess.engine.models import Classification, Phase, PositionEval
+from teachess.engine.models import CHECKMATE_CP, Classification, Phase, PositionEval
 from teachess.ingest.models import ImportedGame
 from teachess.report.builder import (
     ERROR_CLASSES,
@@ -44,7 +44,7 @@ def format_eval(evaluation: PositionEval) -> str:
     if evaluation.mate is not None:
         return f"#{evaluation.mate}"
     cp = evaluation.cp or 0
-    if abs(cp) >= 100_000:  # checkmate already on the board
+    if abs(cp) >= CHECKMATE_CP:  # checkmate already on the board
         return "1-0" if cp > 0 else "0-1"
     return f"{cp / 100:+.2f}"
 
@@ -61,7 +61,11 @@ def render_game_report(report: GameReport, console: Console) -> None:
         return
 
     table = Table(title="Tus imprecisiones y errores (evaluación desde blancas)")
-    for column in ("Jugada", "Jugaste", "Mejor", "Antes", "Después", "Pérdida", "Tipo", "Fase"):
+    for column in ("Jugada", "Jugaste", "Mejor", "Antes", "Después"):
+        table.add_column(column)
+    table.add_column("Pérdida %", justify="right")
+    table.add_column("Pérdida cp", justify="right")
+    for column in ("Tipo", "Fase"):
         table.add_column(column)
     table.add_column("Línea del motor", style="dim")
     for m in report.mistakes:
@@ -71,6 +75,7 @@ def render_game_report(report: GameReport, console: Console) -> None:
             m.best_move_san or "—",
             format_eval(m.eval_before),
             format_eval(m.eval_after),
+            f"{m.win_loss:.0f}",
             str(m.cp_loss),
             f"[{CLASS_STYLES[m.classification]}]{CLASS_LABELS[m.classification]}[/]",
             PHASE_LABELS[m.phase],

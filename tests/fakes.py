@@ -5,7 +5,7 @@ import io
 import chess
 import chess.pgn
 
-from teachess.engine.models import PositionEval
+from teachess.engine.models import CHECKMATE_CP, PositionEval
 
 SCHOLAR_PGN = "1. e4 { [%clk 0:10:00] } e5 { [%clk 0:09:58] } 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0"
 
@@ -19,11 +19,11 @@ SCRIPT = [
     ev(30, "e2e4"),
     ev(30, "e7e5"),
     ev(30, "g1f3"),
-    ev(-30, "b8c6"),  # after 2. Qh5: -60 for White, an inaccuracy
-    ev(-30, "f1c4"),
-    ev(-30, "g7g6"),
+    ev(-100, "b8c6"),  # after 2. Qh5: -130 cp, ~12 win-% points for White: an inaccuracy
+    ev(-100, "f1c4"),
+    ev(-100, "g7g6"),
     ev(mate=1, best="h5f7"),  # after 3... Nf6??: mate in one for White
-    ev(100_000),  # checkmate on the board
+    ev(CHECKMATE_CP),  # checkmate on the board
 ]
 
 

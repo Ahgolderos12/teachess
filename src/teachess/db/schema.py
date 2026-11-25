@@ -1,8 +1,14 @@
 """SQLite schema, versioned with PRAGMA user_version."""
 
 import sqlite3
+from typing import Any
 
-SCHEMA_VERSION = 1
+import chess
+
+from teachess.engine.models import PositionEval
+from teachess.engine.scoring import classify, win_loss
+
+SCHEMA_VERSION = 2
 
 _SCHEMA_V1 = """
 CREATE TABLE games (
@@ -66,13 +72,40 @@ class SchemaVersionError(RuntimeError):
 
 
 def migrate(conn: sqlite3.Connection) -> None:
-    """Bring the database up to SCHEMA_VERSION."""
+    """Bring the database up to SCHEMA_VERSION, one version at a time."""
     version: int = conn.execute("PRAGMA user_version").fetchone()[0]
     if version > SCHEMA_VERSION:
         raise SchemaVersionError(
             f"La base de datos tiene la versión {version}, más nueva que la soportada "
             f"({SCHEMA_VERSION})."
         )
-    if version == 0:
+    if version < 1:
         conn.executescript(_SCHEMA_V1)
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.execute("PRAGMA user_version = 1")
+    if version < 2:
+        _migrate_to_v2(conn)
+
+
+def _migrate_to_v2(conn: sqlite3.Connection) -> None:
+    """Add win_loss and reclassify stored moves by win probability instead of centipawns."""
+    with conn:
+        conn.execute("ALTER TABLE move_analysis ADD COLUMN win_loss REAL NOT NULL DEFAULT 0")
+        rows = conn.execute(
+            "SELECT game_id, ply, uci, fen_before, before_cp, before_mate, before_best, "
+            "after_cp, after_mate FROM move_analysis"
+        ).fetchall()
+        conn.executemany(
+            "UPDATE move_analysis SET win_loss = ?, classification = ? "
+            "WHERE game_id = ? AND ply = ?",
+            [_rescore(row) for row in rows],
+        )
+        conn.execute("PRAGMA user_version = 2")
+
+
+def _rescore(row: tuple[Any, ...]) -> tuple[Any, ...]:
+    game_id, ply, uci, fen_before, b_cp, b_mate, b_best, a_cp, a_mate = row
+    before = PositionEval(cp=b_cp, mate=b_mate, best_move=b_best, pv=(), depth=0)
+    after = PositionEval(cp=a_cp, mate=a_mate, best_move=None, pv=(), depth=0)
+    mover = chess.Board(fen_before).turn
+    loss = 0.0 if uci == b_best else win_loss(before, after, mover)
+    return (loss, classify(loss), game_id, ply)

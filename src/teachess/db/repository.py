@@ -118,8 +118,8 @@ def save_move_analysis(
     with conn:
         conn.execute("DELETE FROM move_analysis WHERE game_id = ?", (game_id,))
         conn.executemany(
-            "INSERT INTO move_analysis VALUES "
-            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO move_analysis ({_MOVE_COLUMNS}) VALUES "
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [_move_to_row(game_id, m) for m in moves],
         )
         conn.execute("UPDATE games SET analyzed_depth = ? WHERE id = ?", (depth, game_id))
@@ -130,6 +130,15 @@ def get_move_analysis(conn: sqlite3.Connection, game_id: int) -> list[MoveAnalys
         "SELECT * FROM move_analysis WHERE game_id = ? ORDER BY ply", (game_id,)
     ).fetchall()
     return [_row_to_move(row) for row in rows]
+
+
+# Explicit column list: columns added by later migrations are appended at the end of the table.
+_MOVE_COLUMNS = (
+    "game_id, ply, san, uci, fen_before, "
+    "before_cp, before_mate, before_best, before_pv, before_depth, "
+    "after_cp, after_mate, after_best, after_pv, after_depth, "
+    "best_move_san, cp_loss, win_loss, classification, phase, clock_seconds"
+)
 
 
 def _move_to_row(game_id: int, m: MoveAnalysis) -> tuple[Any, ...]:
@@ -143,6 +152,7 @@ def _move_to_row(game_id: int, m: MoveAnalysis) -> tuple[Any, ...]:
         *_eval_to_columns(m.eval_after),
         m.best_move_san,
         m.cp_loss,
+        m.win_loss,
         m.classification,
         m.phase,
         m.clock_seconds,
@@ -159,6 +169,7 @@ def _row_to_move(row: sqlite3.Row) -> MoveAnalysis:
         eval_after=_columns_to_eval(row, "after"),
         best_move_san=row["best_move_san"],
         cp_loss=row["cp_loss"],
+        win_loss=row["win_loss"],
         classification=row["classification"],
         phase=row["phase"],
         clock_seconds=row["clock_seconds"],

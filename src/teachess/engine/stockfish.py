@@ -7,9 +7,7 @@ from typing import Self
 import chess
 import chess.engine
 
-from teachess.engine.models import PositionEval
-
-CHECKMATE_CP = 100_000
+from teachess.engine.models import CHECKMATE_CP, PositionEval
 
 
 class StockfishNotConfiguredError(RuntimeError):

@@ -1,4 +1,4 @@
-"""Per-move analysis of a game: centipawn loss, classification, phase and clock."""
+"""Per-move analysis of a game: losses, classification, phase and clock."""
 
 import sqlite3
 
@@ -6,15 +6,8 @@ import chess
 import chess.pgn
 
 from teachess.db import repository as repo
-from teachess.engine.models import Classification, Engine, MoveAnalysis, Phase, PositionEval
-
-# Evaluations are clamped so that moves in already-decided positions are not over-penalised;
-# forced mates count as a fully decided position.
-EVAL_CLAMP_CP = 1000
-
-INACCURACY_CP = 50
-MISTAKE_CP = 100
-BLUNDER_CP = 300
+from teachess.engine.models import Engine, MoveAnalysis, Phase, PositionEval
+from teachess.engine.scoring import classify, cp_loss, win_loss
 
 OPENING_LAST_FULLMOVE = 10
 ENDGAME_MAX_PIECE_MATERIAL = 13  # per side, excluding pawns and king
@@ -53,7 +46,9 @@ def analyse_game(game: chess.pgn.Game, engine: Engine, depth: int) -> list[MoveA
 
         board.push(move)
         after = engine.analyse(board, depth)
-        loss = 0 if move.uci() == before.best_move else cp_loss(before, after, mover)
+        played_best = move.uci() == before.best_move
+        loss = 0 if played_best else cp_loss(before, after, mover)
+        win_drop = 0.0 if played_best else win_loss(before, after, mover)
         moves.append(
             MoveAnalysis(
                 ply=ply,
@@ -64,36 +59,14 @@ def analyse_game(game: chess.pgn.Game, engine: Engine, depth: int) -> list[MoveA
                 eval_after=after,
                 best_move_san=best_san,
                 cp_loss=loss,
-                classification=classify(loss),
+                win_loss=win_drop,
+                classification=classify(win_drop),
                 phase=phase,
                 clock_seconds=node.clock(),
             )
         )
         before = after
     return moves
-
-
-def white_cp(evaluation: PositionEval) -> int:
-    """Clamped score in centipawns from White's point of view."""
-    if evaluation.mate is not None:
-        return EVAL_CLAMP_CP if evaluation.mate > 0 else -EVAL_CLAMP_CP
-    cp = evaluation.cp or 0
-    return max(-EVAL_CLAMP_CP, min(EVAL_CLAMP_CP, cp))
-
-
-def cp_loss(before: PositionEval, after: PositionEval, mover: chess.Color) -> int:
-    sign = 1 if mover == chess.WHITE else -1
-    return max(0, (white_cp(before) - white_cp(after)) * sign)
-
-
-def classify(loss: int) -> Classification:
-    if loss >= BLUNDER_CP:
-        return "blunder"
-    if loss >= MISTAKE_CP:
-        return "mistake"
-    if loss >= INACCURACY_CP:
-        return "inaccuracy"
-    return "ok"
 
 
 def game_phase(board: chess.Board) -> Phase:

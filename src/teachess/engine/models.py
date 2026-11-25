@@ -5,6 +5,9 @@ from typing import Literal, Protocol
 
 import chess
 
+# Score used for a position where checkmate is already on the board (no "mate in N" remains).
+CHECKMATE_CP = 100_000
+
 
 @dataclass(frozen=True)
 class PositionEval:
@@ -37,6 +40,7 @@ class MoveAnalysis:
     eval_after: PositionEval
     best_move_san: str | None
     cp_loss: int  # from the mover's point of view, never negative
-    classification: Classification
+    win_loss: float  # drop in the mover's win probability (percentage points), never negative
+    classification: Classification  # based on win_loss
     phase: Phase
     clock_seconds: float | None  # mover's remaining time after the move, from %clk

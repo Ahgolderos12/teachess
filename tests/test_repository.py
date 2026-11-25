@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from teachess.db import repository as repo
-from teachess.db.schema import SCHEMA_VERSION
+from teachess.db.schema import _SCHEMA_V1, SCHEMA_VERSION
 from teachess.engine.models import MoveAnalysis, PositionEval
 from teachess.ingest.models import ImportedGame
 
@@ -36,6 +36,7 @@ MOVE = MoveAnalysis(
     eval_after=AFTER_EVAL,
     best_move_san="e4",
     cp_loss=0,
+    win_loss=0.0,
     classification="ok",
     phase="opening",
     clock_seconds=598.5,
@@ -106,3 +107,41 @@ def test_position_eval_cache(conn: sqlite3.Connection) -> None:
     repo.put_position_eval(conn, fen, 12, START_EVAL)
     assert repo.get_position_eval(conn, fen, 12) == START_EVAL
     assert repo.get_position_eval(conn, fen, 14) is None
+
+
+def test_migration_from_v1_rescores_stored_moves(tmp_path: Path) -> None:
+    db_path = tmp_path / "v1.sqlite"
+    legacy = sqlite3.connect(db_path)
+    legacy.executescript(_SCHEMA_V1)
+    legacy.execute("PRAGMA user_version = 1")
+    legacy.execute(
+        "INSERT INTO games (id, platform, external_id, username, user_color, white, black, "
+        "result, pgn, imported_at, analyzed_depth) "
+        "VALUES (1, 'pgn', 'x', 'alice', 'white', 'alice', 'bob', '1-0', '', '', 10)"
+    )
+    start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    rows = [
+        # White, +8 -> +4: a centipawn "blunder" that is only an inaccuracy by win probability.
+        (1, 1, "a2a3", start, 800, None, "e2e4", 400, None, 400, "blunder"),
+        # Black played the engine's move: no loss whatever the evaluations say.
+        (1, 2, "e7e5", after_e4, 0, None, "e7e5", 900, None, 0, "ok"),
+    ]
+    legacy.executemany(
+        "INSERT INTO move_analysis (game_id, ply, san, uci, fen_before, before_cp, before_mate, "
+        "before_best, before_pv, before_depth, after_cp, after_mate, after_pv, after_depth, "
+        "cp_loss, classification, phase) "
+        "VALUES (?, ?, 'm', ?, ?, ?, ?, ?, '', 10, ?, ?, '', 10, ?, ?, 'opening')",
+        rows,
+    )
+    legacy.commit()
+    legacy.close()
+
+    connection = repo.connect(db_path)
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    moves = repo.get_move_analysis(connection, 1)
+    assert [m.classification for m in moves] == ["inaccuracy", "ok"]
+    assert moves[0].win_loss == pytest.approx(13.7, abs=0.1)
+    assert moves[0].cp_loss == 400  # kept for the ACPL
+    assert moves[1].win_loss == 0.0
+    connection.close()

@@ -1,14 +1,16 @@
 import chess
+import pytest
 
 from teachess.db import repository as repo
-from teachess.engine.analysis import (
+from teachess.engine.analysis import PersistentCacheEngine, analyse_game, game_phase
+from teachess.engine.models import CHECKMATE_CP
+from teachess.engine.scoring import (
     EVAL_CLAMP_CP,
-    PersistentCacheEngine,
-    analyse_game,
     classify,
     cp_loss,
-    game_phase,
     white_cp,
+    win_loss,
+    win_percent,
 )
 from tests.fakes import SCHOLAR_PGN, SCRIPT, ScriptedEngine, ev, read
 
@@ -19,7 +21,10 @@ def test_analyse_game_scores_and_classifies_each_move() -> None:
 
     assert engine.calls == len(SCRIPT)  # each position evaluated once
     assert [m.san for m in moves] == ["e4", "e5", "Qh5", "Nc6", "Bc4", "Nf6", "Qxf7#"]
-    assert [m.cp_loss for m in moves] == [0, 0, 60, 0, 0, EVAL_CLAMP_CP + 30, 0]
+    assert [m.cp_loss for m in moves] == [0, 0, 130, 0, 0, EVAL_CLAMP_CP + 100, 0]
+    assert moves[2].win_loss == pytest.approx(11.9, abs=0.1)
+    assert moves[5].win_loss == pytest.approx(59.1, abs=0.1)
+    assert [m.win_loss for m in moves[:2]] == [0.0, 0.0]
     assert [m.classification for m in moves] == [
         "ok",
         "ok",
@@ -54,8 +59,46 @@ def test_cp_loss_is_from_movers_point_of_view() -> None:
     assert cp_loss(ev(-100), ev(200), chess.BLACK) == 300
 
 
+def test_win_percent_follows_lichess_model() -> None:
+    assert win_percent(ev(0)) == 50.0
+    assert win_percent(ev(100)) == pytest.approx(59.1, abs=0.1)
+    assert win_percent(ev(-100)) == pytest.approx(40.9, abs=0.1)
+    assert win_percent(ev(5000)) == win_percent(ev(EVAL_CLAMP_CP))  # clamped
+    assert win_percent(ev(mate=7)) == 100.0
+    assert win_percent(ev(mate=-1)) == 0.0
+    assert win_percent(ev(CHECKMATE_CP)) == 100.0
+    assert win_percent(ev(-CHECKMATE_CP)) == 0.0
+
+
+def test_win_loss_is_from_movers_point_of_view() -> None:
+    assert win_loss(ev(100), ev(-100), chess.WHITE) == pytest.approx(18.2, abs=0.1)
+    assert win_loss(ev(100), ev(-100), chess.BLACK) == 0.0
+    assert win_loss(ev(100), ev(-100), chess.BLACK) == win_loss(ev(-100), ev(100), chess.WHITE)
+
+
+def test_dropping_eval_in_won_position_is_not_a_blunder() -> None:
+    # +8 -> +4: 400 cp lost (a blunder by centipawns), but White is still clearly winning.
+    loss = win_loss(ev(800), ev(400), chess.WHITE)
+    assert cp_loss(ev(800), ev(400), chess.WHITE) == 400
+    assert loss == pytest.approx(13.7, abs=0.1)
+    assert classify(loss) == "inaccuracy"
+    # Already completely winning: giving back material that keeps +10 costs nothing.
+    assert classify(win_loss(ev(3000), ev(1200), chess.WHITE)) == "ok"
+
+
+def test_allowing_mate_is_penalised_by_how_much_was_left_to_lose() -> None:
+    # From equal to mated: the whole game is thrown away.
+    assert classify(win_loss(ev(0), ev(mate=-3), chess.WHITE)) == "blunder"
+    # From clearly worse (-3) to mated: still a real error, but less is lost.
+    loss = win_loss(ev(-300), ev(mate=-3), chess.WHITE)
+    assert loss == pytest.approx(24.9, abs=0.1)
+    assert classify(loss) == "mistake"
+    # Missing a mate while staying totally winning is not an error.
+    assert classify(win_loss(ev(mate=2), ev(1500), chess.WHITE)) == "ok"
+
+
 def test_classify_thresholds() -> None:
-    assert [classify(x) for x in (49, 50, 99, 100, 299, 300)] == [
+    assert [classify(x) for x in (9.9, 10, 19.9, 20, 29.9, 30)] == [
         "ok",
         "inaccuracy",
         "inaccuracy",

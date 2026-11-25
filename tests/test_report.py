@@ -50,12 +50,12 @@ def test_game_report_only_counts_user_moves(conn: sqlite3.Connection) -> None:
     assert as_black is not None
     assert [m.san for m in as_black.mistakes] == ["Nf6"]
     assert as_black.counts["blunder"] == 1
-    assert as_black.acpl == pytest.approx(1030 / 3)
+    assert as_black.acpl == pytest.approx(1100 / 3)
 
     as_white = load_game_report(conn, game_id(conn, "g2"))
     assert as_white is not None
     assert [m.san for m in as_white.mistakes] == ["Qh5"]
-    assert as_white.acpl == pytest.approx(60 / 4)
+    assert as_white.acpl == pytest.approx(130 / 4)
 
 
 def test_game_report_missing_or_unanalysed(conn: sqlite3.Connection) -> None:

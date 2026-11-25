@@ -68,7 +68,9 @@ Ajustar la estructura si hay una razón clara; documentar el cambio aquí.
 Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`). `patterns/`, `memory/`, `coach/` y `training/` se crean al llegar a su fase.
 
 Decisiones de la Fase 1:
-- Pérdida por jugada en centipeones desde el punto de vista de quien mueve, con evaluaciones recortadas a ±1000 (un mate cuenta como ±1000). Umbrales: imprecisión ≥ 50, error ≥ 100, error grave ≥ 300 (`engine/analysis.py`).
+- Clasificación por caída de probabilidad de victoria de quien mueve (fórmula de Lichess sobre centipeones recortados a ±1000; un mate forzado o dado cuenta como 0 % o 100 %). Umbrales en puntos porcentuales: imprecisión ≥ 10, error ≥ 20, error grave ≥ 30 (`engine/scoring.py`, columna `win_loss`). Así no se castigan jugadas imperfectas en posiciones ya decididas.
+- Se mantiene la pérdida en centipeones (`cp_loss`, recortada a ±1000) solo para el ACPL.
+- La puntuación pura vive en `engine/scoring.py`, sin dependencias de BD, para que las migraciones puedan recalcular filas guardadas (la v2 reclasificó los análisis existentes sin volver a llamar al motor).
 - Fase de la partida por heurística: final si ambos bandos tienen ≤ 13 puntos de material sin peones; si no, apertura hasta la jugada 10 y medio juego después.
 - Caché de Stockfish persistente en SQLite (`position_evals`, clave `(FEN, profundidad)`).
 - Esquema versionado con `PRAGMA user_version` (`db/schema.py`).
