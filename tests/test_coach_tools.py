@@ -1,45 +1,12 @@
 import json
-import sqlite3
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
 
 from teachess.coach.tools import TOOL_DEFINITIONS, CoachToolbox
-from teachess.db import repository as repo
-from teachess.engine.analysis import analyse_game
-from teachess.ingest.models import ImportedGame
-from teachess.report.builder import load_game_report
-from tests.fakes import SCHOLAR_PGN, ScriptedEngine, read
 
-GAME = ImportedGame(
-    platform="chesscom",
-    external_id="g1",
-    username="alice",
-    user_color="black",
-    white="Bob",
-    black="alice",
-    result="1-0",
-    time_control="600",
-    played_at="2026-10-01T10:00:00+00:00",
-    url=None,
-    pgn='[ECOUrl "https://www.chess.com/openings/Kings-Pawn-Opening"]\n\n' + SCHOLAR_PGN,
-)
 FEN_BEFORE_NF6 = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"
 MATED_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"
-
-
-@pytest.fixture
-def toolbox() -> Iterator[CoachToolbox]:
-    conn: sqlite3.Connection = repo.connect(":memory:")
-    repo.insert_game(conn, GAME)
-    stored = repo.list_games(conn)[0]
-    moves = analyse_game(read(SCHOLAR_PGN), ScriptedEngine(), depth=10)
-    repo.save_move_analysis(conn, stored.id, moves, depth=10)
-    report = load_game_report(conn, stored.id)
-    assert report is not None
-    yield CoachToolbox(report, repo.get_move_analysis(conn, stored.id), ScriptedEngine(), 10)
-    conn.close()
 
 
 def call(toolbox: CoachToolbox, name: str, **arguments: Any) -> dict[str, Any]:
