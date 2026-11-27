@@ -14,7 +14,7 @@ El mercado ya tiene coaches IA que importan partidas de Chess.com/Lichess y dete
 4. **Español como idioma principal** del coach.
 5. Plan de entrenamiento y ejercicios generados desde las propias partidas del usuario.
 
-## Principio de diseño no negociable
+## Principios de diseño no negociables
 
 > **El motor calcula, el LLM explica.**
 
@@ -22,6 +22,13 @@ El mercado ya tiene coaches IA que importan partidas de Chess.com/Lichess y dete
 - El LLM (Claude) **nunca inventa jugadas ni evaluaciones**. Todo hecho ajedrecístico que afirme debe provenir de una herramienta (tool) que consulte el motor o la base de datos.
 - Si el coach no tiene un dato verificado, debe decir que no lo sabe o pedir análisis, no improvisar.
 - Validar siempre las jugadas con `python-chess` (legalidad, FEN/PGN) antes de mostrarlas o enviarlas al LLM.
+
+> **Juzgar con criterio humano, no de máquina.**
+
+- Stockfish decide si una jugada es objetivamente buena o mala, pero el coach valora y explica los errores según lo que un humano podría ver.
+- Para eso tiene en cuenta la profundidad de la refutación (un castigo en 2-3 jugadas es exigible; una línea forzada de 10 no) y la dificultad de la mejor jugada (única, profunda, poco natural), y se calibra al nivel del jugador, no al de un campeón del mundo.
+- Nunca se reduce la profundidad del motor para simularlo: un motor con menos profundidad no piensa como un humano, solo se equivoca de otra forma.
+- Las explicaciones usan ideas y líneas cortas, no variantes largas del motor.
 
 ## Stack
 
@@ -58,7 +65,16 @@ teachess/
 
 Ajustar la estructura si hay una razón clara; documentar el cambio aquí.
 
-Estado actual: solo existen los paquetes de la Fase 1 (`ingest/`, `engine/`, `db/`, `report/`). `patterns/`, `memory/`, `coach/` y `training/` se crean al llegar a su fase.
+Estado actual: Fase 1 completa (`ingest/`, `engine/`, `db/`, `report/`). `patterns/`, `memory/`, `coach/` y `training/` se crean al llegar a su fase.
+
+Decisiones de la Fase 1:
+- Clasificación por caída de probabilidad de victoria de quien mueve (fórmula de Lichess sobre centipeones recortados a ±1000; un mate forzado o dado cuenta como 0 % o 100 %). Umbrales en puntos porcentuales: imprecisión ≥ 10, error ≥ 20, error grave ≥ 30 (`engine/scoring.py`, columna `win_loss`). Así no se castigan jugadas imperfectas en posiciones ya decididas.
+- Se mantiene la pérdida en centipeones (`cp_loss`, recortada a ±1000) solo para el ACPL.
+- La puntuación pura vive en `engine/scoring.py`, sin dependencias de BD, para que las migraciones puedan recalcular filas guardadas (la v2 reclasificó los análisis existentes sin volver a llamar al motor).
+- Fase de la partida por heurística: final si ambos bandos tienen ≤ 13 puntos de material sin peones; si no, apertura hasta la jugada 10 y medio juego después.
+- Caché de Stockfish persistente en SQLite (`position_evals`, clave `(FEN, profundidad)`).
+- Esquema versionado con `PRAGMA user_version` (`db/schema.py`).
+- Los tests de CLI sustituyen `cli._http_client` y `cli._open_engine` por dobles (`tests/fakes.py`).
 
 ## Fuentes de datos
 
@@ -123,15 +139,15 @@ uv run ruff check . ; uv run mypy src
 
 # CLI
 uv run teachess --version
-# (previsto)
-uv run teachess import --platform chesscom --user <usuario>
-uv run teachess analyze --game <id>
-uv run teachess report --user <usuario>
+uv run teachess import --platform chesscom|lichess [--user <usuario>] [--max-games 50]
+uv run teachess import --platform pgn --file <archivo.pgn> --user <nombre> [--color white|black]
+uv run teachess analyze --user <usuario> | --game <id> [--depth N] [--reanalyze]
+uv run teachess report --user <usuario> | --game <id>
 ```
 
 ## Configuración y secretos
 
-- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`.
+- Variables en `.env` (nunca commitear): `ANTHROPIC_API_KEY`, `TEACHESS_MODEL`, `STOCKFISH_PATH`, `CHESSCOM_USER`, `LICHESS_USER`, `TEACHESS_DB` (por defecto `data/teachess.sqlite`), `TEACHESS_DEPTH` (por defecto 16).
 - Mantener `.env.example` actualizado sin valores reales.
 - No imprimir ni registrar claves ni datos personales en logs.
 
@@ -149,6 +165,7 @@ uv run teachess report --user <usuario>
 
 ## Cómo trabajar conmigo en este repo
 
+- Al empezar una sesión, leer `docs/NEXT_STEPS.md` (dónde lo dejamos y qué sigue) y actualizarlo al terminar.
 - Antes de implementar algo no trivial, proponer un breve plan y esperar confirmación.
 - Mostrar qué archivos se van a crear o modificar.
 - Ante ambigüedad de alcance o de decisiones de diseño, preguntar en lugar de asumir.
