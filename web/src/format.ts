@@ -112,3 +112,58 @@ export function scrollWithin(container: HTMLElement | null, element: HTMLElement
     container.scrollTop = bottom - container.clientHeight;
   }
 }
+
+export const TIME_CLASS_LABELS: Record<string, string> = {
+  bullet: "Bala",
+  blitz: "Blitz",
+  rapid: "Rápidas",
+  daily: "Diarias",
+};
+
+export const TERMINATION_LABELS: Record<string, string> = {
+  checkmate: "jaque mate",
+  resignation: "abandono",
+  time: "tiempo",
+  abandoned: "partida abandonada",
+  agreement: "acuerdo",
+  repetition: "repetición",
+  stalemate: "ahogado",
+  insufficient: "material insuficiente",
+  other: "otro motivo",
+};
+
+export const COLOR_LABELS: Record<"white" | "black", string> = { white: "Blancas", black: "Negras" };
+
+/** Number with Spanish formatting, or a dash when missing. */
+export function formatNumber(value: number | null | undefined, digits = 1): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return value.toLocaleString("es-ES", { maximumFractionDigits: digits });
+}
+
+/** Moving average over the last `size` values, skipping nulls. */
+export function movingAverage(values: (number | null)[], size: number): (number | null)[] {
+  return values.map((_, index) => {
+    const window = values.slice(Math.max(0, index - size + 1), index + 1).filter(
+      (v): v is number => v !== null,
+    );
+    return window.length ? window.reduce((a, b) => a + b, 0) / window.length : null;
+  });
+}
+
+export function sideToMove(fen: string): "w" | "b" {
+  return fen.split(" ")[1] === "b" ? "b" : "w";
+}
+
+/** Numbered SAN line from a position: "20... Qd6 21. Qxd6 Bxd6". */
+export function lineText(fen: string, sans: string[]): string {
+  let black = sideToMove(fen) === "b";
+  let number = Number(fen.split(" ")[5] ?? 1);
+  return sans
+    .map((san, index) => {
+      const prefix = !black ? `${number}. ` : index === 0 ? `${number}... ` : "";
+      if (black) number += 1;
+      black = !black;
+      return prefix + san;
+    })
+    .join(" ");
+}

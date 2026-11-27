@@ -14,11 +14,18 @@ from typing import Any
 
 import chess
 
-from teachess.coach.tools import LEVELS, EngineTools, GameTools, ToolInputError
+from teachess.coach.tools import LEVELS, EngineTools, GameTools, ToolInputError, show_position
 from teachess.db import repository as repo
 from teachess.engine.analysis import PersistentCacheEngine
 from teachess.engine.models import Engine, PositionEval
+from teachess.patterns.diagnosis import DEFAULT_WINDOW, diagnose
+from teachess.patterns.facts import load_facts
+from teachess.patterns.filters import GameFilter, filter_options
+from teachess.patterns.stats import player_stats
 from teachess.report.builder import load_game_report
+
+TEACHER_BOARD = "teacher_board"  # last position shown by the teacher (ui_state key)
+MCP_READY = "mcp_ready"  # terminal session whose MCP server last started (ui_state key)
 
 
 class CoachBackend:
@@ -68,6 +75,62 @@ class CoachBackend:
                     row["user_mistakes"] = {level: report.counts[level] for level in LEVELS}
                 rows.append(row)
         return {"games": rows}
+
+    def resolve_user(self, username: str | None) -> str:
+        """The given player, or the one with the most recent games."""
+        with self.connection() as conn:
+            users = repo.list_usernames(conn)
+        if not users:
+            raise ToolInputError("No hay partidas importadas.")
+        if username is None:
+            return users[0]
+        match = next((u for u in users if u.lower() == username.strip().lower()), None)
+        if match is None:
+            raise ToolInputError(f"No hay partidas de {username}. Jugadores: {', '.join(users)}.")
+        return match
+
+    def diagnosis(self, username: str | None, window: int = DEFAULT_WINDOW) -> dict[str, Any]:
+        """Recurring patterns in the player's latest analysed games (no engine calls)."""
+        user = self.resolve_user(username)
+        with self.connection() as conn:
+            facts = load_facts(conn, user)
+        return {"user": user, **diagnose(facts, max(5, min(window, 100)))}
+
+    def show_position(
+        self, fen: str, orientation: str, arrow: str | None, caption: str | None
+    ) -> dict[str, Any]:
+        """Diagram for the terminal; also published to the web's Teacher board."""
+        shown = show_position(fen, orientation, arrow)
+        board = {k: shown[k] for k in ("fen", "orientation", "arrow")}
+        with self.connection() as conn:
+            repo.set_ui_state(conn, TEACHER_BOARD, {**board, "caption": (caption or "")[:200]})
+        return shown
+
+    def announce_mcp_ready(self, session: str) -> None:
+        with self.connection() as conn:
+            repo.set_ui_state(conn, MCP_READY, {"session": session})
+
+    def mcp_ready(self, session: str) -> bool:
+        with self.connection() as conn:
+            state = repo.get_ui_state(conn, MCP_READY)
+        return state is not None and state.get("session") == session
+
+    def teacher_board(self) -> dict[str, Any] | None:
+        with self.connection() as conn:
+            return repo.get_ui_state(conn, TEACHER_BOARD)
+
+    def stats(self, username: str | None, games: GameFilter | None = None) -> dict[str, Any]:
+        """Every statistic of the player's games (optionally filtered), for the Statistics page."""
+        user = self.resolve_user(username)
+        game_filter = games or GameFilter()
+        with self.connection() as conn:
+            facts = load_facts(conn, user)
+        return {
+            "user": user,
+            "filter": game_filter.to_dict(),
+            "options": filter_options(facts),
+            **player_stats(game_filter.apply(facts)),
+        }
 
     def game(self, game_id: int) -> GameTools:
         with self.connection() as conn:

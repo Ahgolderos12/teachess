@@ -180,7 +180,7 @@ function ImportSummary({ result }: { result: ImportResult }) {
       <p>
         <Link to={`/?user=${encodeURIComponent(result.username)}`}>Ver las partidas</Link>
         {" · "}
-        <Link to={`/report/${encodeURIComponent(result.username)}`}>Ver el informe</Link>
+        <Link to={`/stats/${encodeURIComponent(result.username)}`}>Ver las estadísticas</Link>
       </p>
     </Alert>
   );

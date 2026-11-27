@@ -7,6 +7,7 @@ import {
   formatClock,
   formatDate,
   formatTimeControl,
+  lineText,
   uciSquares,
 } from "./format";
 
@@ -68,5 +69,14 @@ describe("api helpers", () => {
     expect(second.events).toEqual([{ type: "text", text: "la" }]);
     expect(second.rest).toBe("");
     expect(parseSse("data: {broken}\n\n").events).toEqual([]);
+  });
+});
+
+describe("lineText", () => {
+  it("numbers a line from either side", () => {
+    const black = "r2q1rk1/p4pbp/2b1n1p1/8/1pQ5/3PB3/1PP1NPPP/1R3RK1 b - - 5 20";
+    expect(lineText(black, ["Qd6", "Qxb4", "Bxe2"])).toBe("20... Qd6 21. Qxb4 Bxe2");
+    expect(lineText("8/8/8/8/8/8/8/K6k w - - 0 3", ["Kb2"])).toBe("3. Kb2");
+    expect(lineText(black, [])).toBe("");
   });
 });

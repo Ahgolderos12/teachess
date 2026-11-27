@@ -20,12 +20,15 @@ class Settings:
     engine_depth: int
     model: str  # Claude model used by the coach
     effort: Effort  # reasoning effort for the coach
+    sync_hours: float = 6.0  # `serve` imports and analyses new games every N hours (0: off)
+    teacher_model: str | None = None  # Claude Code model for the web's Teacher tab
 
 
 DEFAULT_DB_PATH = Path("data/teachess.sqlite")
 DEFAULT_ENGINE_DEPTH = 16
 DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_EFFORT: Effort = "medium"
+DEFAULT_SYNC_HOURS = 6.0
 
 
 class SettingsError(ValueError):
@@ -51,7 +54,23 @@ def load_settings() -> Settings:
         engine_depth=int(depth) if depth else DEFAULT_ENGINE_DEPTH,
         model=_optional("TEACHESS_MODEL") or DEFAULT_MODEL,
         effort=_effort(_optional("TEACHESS_EFFORT")),
+        sync_hours=_sync_hours(_optional("TEACHESS_SYNC_HOURS")),
+        teacher_model=_optional("TEACHESS_TEACHER_MODEL"),
     )
+
+
+def _sync_hours(value: str | None) -> float:
+    if value is None:
+        return DEFAULT_SYNC_HOURS
+    try:
+        hours = float(value.replace(",", "."))
+    except ValueError:
+        hours = -1
+    if hours < 0:
+        raise SettingsError(
+            f"TEACHESS_SYNC_HOURS debe ser un número de horas ≥ 0 (recibido: {value})."
+        )
+    return hours
 
 
 def _effort(value: str | None) -> Effort:

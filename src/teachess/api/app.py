@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import anthropic
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, WebSocket
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from teachess import __version__
 from teachess.api import serializers
@@ -22,10 +22,14 @@ from teachess.api.coach_sessions import (
 )
 from teachess.api.jobs import JobError, JobManager, Progress
 from teachess.api.services import EngineFactory, HttpClientFactory, analyse_games, import_games
+from teachess.api.sync import SyncBusyError, SyncService
+from teachess.api.terminal import TeacherTerminal
 from teachess.coach.backend import CoachBackend
 from teachess.coach.tools import ToolInputError
 from teachess.config import Effort
 from teachess.db import repository as repo
+from teachess.ingest.models import Platform
+from teachess.patterns.filters import DAY_BLOCKS, GameFilter
 from teachess.report.builder import load_game_report, load_user_report
 
 MCP_COACH_COMMAND = "/mcp__teachess__coach"
@@ -45,6 +49,11 @@ class ApiConfig:
     static_dir: Path | None = None
     allowed_hosts: list[str] = field(default_factory=lambda: ["127.0.0.1", "localhost"])
     job_manager: JobManager | None = None  # tests inject a synchronous one
+    sync_hours: float = 0  # automatic import + analysis every N hours (0: manual only)
+    sync_max_games: int = 50  # newest games fetched per platform on each sync
+    project_dir: Path = field(default_factory=Path.cwd)  # where the Teacher's Claude Code runs
+    teacher_command: list[str] | None = None  # tests replace Claude Code with a fake
+    teacher_model: str | None = None  # Claude Code model for the Teacher (None: user default)
 
 
 # --- request bodies -----------------------------------------------------------------
@@ -81,6 +90,32 @@ class MoveRequest(EvaluateRequest):
     move: str = Field(max_length=10)
 
 
+class StatsFilter(BaseModel):
+    """Query parameters of the Statistics page (see patterns.filters.GameFilter)."""
+
+    time_class: Literal["bullet", "blitz", "rapid", "daily"] | None = None
+    time_control: str | None = Field(default=None, max_length=20)
+    color: Literal["white", "black"] | None = None
+    outcome: Literal["win", "draw", "loss"] | None = None
+    termination: str | None = Field(default=None, max_length=20)
+    opening: str | None = Field(default=None, max_length=100)
+    since: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    until: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    min_gap: int | None = Field(default=None, ge=-3000, le=3000)
+    max_gap: int | None = Field(default=None, ge=-3000, le=3000)
+    weekday: int | None = Field(default=None, ge=0, le=6)
+    day_block: int | None = None  # 0, 6, 12 or 18 (query strings never match int Literals)
+    last: int | None = Field(default=None, ge=1, le=10_000)
+    offset: int = Field(default=0, ge=0, le=10_000)
+
+    @field_validator("day_block")
+    @classmethod
+    def known_block(cls, value: int | None) -> int | None:
+        if value is not None and value not in DAY_BLOCKS:
+            raise ValueError(f"day_block debe ser uno de: {', '.join(map(str, DAY_BLOCKS))}.")
+        return value
+
+
 class CoachSessionRequest(BaseModel):
     game_id: int
 
@@ -96,10 +131,61 @@ def create_app(config: ApiConfig) -> FastAPI:
     backend = CoachBackend(config.db_path, config.engine_depth, config.open_engine)
     jobs = config.job_manager or JobManager()
     coach = CoachSessions(backend, config.anthropic_client, config.model, config.effort)
+    sync_users: list[tuple[Platform, str]] = [
+        (platform, user)
+        for platform in ("chesscom", "lichess")
+        if (user := config.default_users.get(platform))
+    ]
+
+    def run_sync(progress: Progress) -> dict[str, Any]:
+        """Import the newest games of every configured player, then analyse what is new."""
+        report: dict[str, Any] = {"platforms": [], "new": 0, "analyzed": 0}
+        for platform, user in sync_users:
+            entry: dict[str, Any] = {"platform": platform, "user": user}
+            try:
+                imported = import_games(
+                    config.db_path,
+                    config.http_client,
+                    platform,
+                    user,
+                    config.sync_max_games,
+                    None,
+                    None,
+                    progress,
+                )
+                entry["new"] = imported["new"]
+                report["new"] += imported["new"]
+                pending = _pending_games(user)
+                if pending:
+                    analysed = analyse_games(
+                        config.db_path, config.open_engine, pending, config.engine_depth, progress
+                    )
+                    entry["analyzed"] = analysed["analyzed"]
+                    report["analyzed"] += analysed["analyzed"]
+            except JobError as exc:
+                entry["error"] = str(exc)
+            report["platforms"].append(entry)
+        errors = [e["error"] for e in report["platforms"] if "error" in e]
+        if errors and len(errors) == len(sync_users):
+            raise JobError(" · ".join(errors))
+        progress(1, 1, "Sincronización terminada.")
+        return report
+
+    sync = SyncService(jobs, run_sync if sync_users else None, config.sync_hours * 3600)
+    terminal = TeacherTerminal(
+        config.project_dir,
+        config.allowed_hosts,
+        config.teacher_command,
+        config.teacher_model,
+        mcp_ready=None if config.teacher_command else backend.mcp_ready,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        sync.start()
         yield
+        sync.stop()
+        terminal.close()
         jobs.shutdown()
         backend.close()
 
@@ -157,6 +243,22 @@ def create_app(config: ApiConfig) -> FastAPI:
             report = load_user_report(conn, username)
             usernames = repo.list_usernames(conn)
         return serializers.user_report(report, usernames)
+
+    @app.get("/api/users/{username}/stats")
+    def user_stats(username: str, games: Annotated[StatsFilter, Query()]) -> dict[str, Any]:
+        try:
+            return backend.stats(username, GameFilter(**games.model_dump()))
+        except ToolInputError as exc:
+            raise HTTPException(404, str(exc)) from None
+
+    @app.get("/api/users/{username}/diagnosis")
+    def user_diagnosis(
+        username: str, window: Annotated[int, Query(ge=5, le=100)] = 20
+    ) -> dict[str, Any]:
+        try:
+            return backend.diagnosis(username, window)
+        except ToolInputError as exc:
+            raise HTTPException(404, str(exc)) from None
 
     # --- background jobs -----------------------------------------------------------
 
@@ -224,6 +326,36 @@ def create_app(config: ApiConfig) -> FastAPI:
     def _pending_games(username: str) -> list[int]:
         with backend.connection() as conn:
             return [g.id for g in repo.list_games(conn, username=username, pending_only=True)]
+
+    @app.get("/api/sync")
+    def sync_status() -> dict[str, Any]:
+        return {**sync.status(), "users": dict(sync_users)}
+
+    @app.post("/api/sync", status_code=202)
+    def sync_now() -> dict[str, Any]:
+        if not sync.configured:
+            raise HTTPException(
+                400, "Configura CHESSCOM_USER o LICHESS_USER en .env para sincronizar."
+            )
+        try:
+            return sync.trigger()
+        except SyncBusyError as exc:
+            raise HTTPException(409, str(exc)) from None
+
+    # --- teacher (Claude Code in a terminal, user's subscription) -------------------
+
+    @app.get("/api/teacher")
+    def teacher_info() -> dict[str, Any]:
+        return terminal.info()
+
+    @app.get("/api/teacher/board")
+    def teacher_board() -> dict[str, Any]:
+        """Last position the teacher showed with `show_position` (null if none yet)."""
+        return {"board": backend.teacher_board()}
+
+    @app.websocket("/api/teacher/terminal")
+    async def teacher_terminal(websocket: WebSocket) -> None:
+        await terminal.serve(websocket)
 
     @app.get("/api/jobs/{job_id}")
     def job(job_id: str) -> dict[str, Any]:

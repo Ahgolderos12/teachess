@@ -1,6 +1,6 @@
 # Próximos pasos
 
-Última actualización: 2026-11-25 (aplicación web).
+Última actualización: 2026-11-25 (Teacher, pasos 1-5).
 
 ## Dónde estamos
 
@@ -97,6 +97,42 @@ Falta:
 - [ ] Fusionar los PR en orden: #1 (Fase 1), #2 (Fase 2) y el de la web.
 
 Ideas para después (sin decidir): mostrar en la web la profundidad de la refutación de cada error, filtros por apertura y ritmo, gráfica de evolución del ACPL, y la memoria del jugador (Fase 3).
+
+## 5. Teacher: profesor proactivo (siguiente gran bloque)
+
+El usuario quiere que la app deje de ser un analizador más: una pestaña **Teacher** con
+Claude Code (MCP) que abre la lección solo a partir de las estadísticas, importación
+automática de Chess.com y una pestaña de **estadísticas masivas** con muchas más métricas.
+Ideas, arquitectura y orden en `docs/TEACHER_PLAN.md` (orden confirmado).
+
+Hecho en la rama `teacher` (4 commits, sin subir): pasos 1-5 del plan.
+- Diagnóstico de patrones (`patterns/`) + prompt MCP `teacher` + `get_player_diagnosis` y
+  `show_position`.
+- Pestaña **Estadísticas** (sustituye al Informe) con `patterns/stats.py`.
+- **Sincronización automática** (`TEACHESS_SYNC_HOURS`, 6 h por defecto) con indicador en la
+  cabecera. Probada contra Chess.com real.
+- Pestaña **Teacher**: Claude Code en una terminal en la web + tablero de la clase. Probada
+  de punta a punta con Claude Code real en Chrome headless.
+- 137 tests de backend y 8 de frontend; `ruff`, `mypy` y `tsc` sin errores.
+
+Después (2026-11-25, a petición del usuario tras probarlo):
+- ELO **antes** de la partida estimado (Chess.com guarda el de después; confirmado).
+- Estadísticas **filtrables y comparables** (grupo A frente a B, comparaciones rápidas,
+  clic en gráficas para filtrar, lista de partidas del filtro).
+- **Tablero interactivo** en Teacher: responder moviendo una pieza y modo «Analizar».
+
+Para usarlo: `cd web && npm install && npm run build`, `uv sync` (nueva dependencia
+`websockets`) y reiniciar `uv run teachess serve`. Opcional en `.env`:
+`TEACHESS_TEACHER_MODEL=claude-opus-5-5` (con Haiku el profesor es flojo).
+
+Siguiente:
+- [ ] Dar clases reales y ajustar el prompt (`coach/prompts.py`) y los umbrales de
+      `patterns/diagnosis.py` con lo que se vea.
+- [ ] Paso 6: **memoria de lecciones** (Fase 3): guardar al final de cada clase un resumen
+      estructurado (tema, lo que dijo el jugador, deberes) y empezar la siguiente por ahí.
+- [ ] Paso 7: ejercicios desde tus partidas y plan semanal (Fase 4).
+- [ ] Windows: la terminal integrada no funciona (no hay `pty`); valorar `pywinpty`.
+- [ ] Fusionar los PR en orden: #1, #2, web y `teacher`.
 
 ## Mejoras abiertas (sin decidir)
 

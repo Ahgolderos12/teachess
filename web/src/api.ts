@@ -2,15 +2,20 @@ import type {
   AnalysisResult,
   CoachEvent,
   Color,
+  Diagnosis,
   GameDetail,
   GameRow,
   ImportResult,
   Job,
   MoveEvaluation,
   Platform,
+  PlayerStats,
   PositionEvaluation,
   Status,
-  UserReport,
+  SyncResult,
+  SyncStatus,
+  TeacherBoard,
+  TeacherInfo,
 } from "./types";
 
 export class ApiError extends Error {
@@ -62,7 +67,15 @@ export const api = {
       user ? `/api/games?user=${encodeURIComponent(user)}` : "/api/games",
     ).then((r) => r.games),
   game: (id: number) => request<GameDetail>(`/api/games/${id}`),
-  report: (user: string) => request<UserReport>(`/api/users/${encodeURIComponent(user)}/report`),
+  stats: (user: string, query = "") =>
+    request<PlayerStats>(`/api/users/${encodeURIComponent(user)}/stats${query ? `?${query}` : ""}`),
+  diagnosis: (user: string, window = 20) =>
+    request<Diagnosis>(`/api/users/${encodeURIComponent(user)}/diagnosis?window=${window}`),
+  sync: () => request<SyncStatus>("/api/sync"),
+  teacher: () => request<TeacherInfo>("/api/teacher"),
+  teacherBoard: () =>
+    request<{ board: TeacherBoard | null }>("/api/teacher/board").then((r) => r.board),
+  syncNow: () => post<Job<SyncResult>>("/api/sync", {}),
   job: <R>(id: string) => request<Job<R>>(`/api/jobs/${encodeURIComponent(id)}`),
   startImport: (body: {
     platform: Platform;

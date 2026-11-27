@@ -1,12 +1,19 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Navigate, NavLink, Route, Routes, useParams } from "react-router-dom";
 
-import { Alert } from "./components/common";
+import { Alert, Loading } from "./components/common";
+import { SyncIndicator } from "./components/SyncIndicator";
 import { GamePage } from "./pages/GamePage";
 import { GamesPage } from "./pages/GamesPage";
 import { ImportPage } from "./pages/ImportPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import { ReportPage } from "./pages/ReportPage";
+import { StatsPage } from "./pages/StatsPage";
 import { useStatus } from "./status";
+
+// The terminal (xterm.js) is heavy: load the Teacher tab only when it is opened.
+const TeacherPage = lazy(() =>
+  import("./pages/TeacherPage").then((module) => ({ default: module.TeacherPage })),
+);
 
 export function App() {
   const { status, error } = useStatus();
@@ -18,12 +25,14 @@ export function App() {
           Teachess
         </NavLink>
         <nav className="nav" aria-label="Principal">
+          <NavLink to="/teacher">Teacher</NavLink>
           <NavLink to="/" end>
             Partidas
           </NavLink>
-          <NavLink to="/report">Informe</NavLink>
+          <NavLink to="/stats">Estadísticas</NavLink>
           <NavLink to="/import">Importar</NavLink>
         </nav>
+        <SyncIndicator />
         {status && (
           <span
             className={`pill ${status.stockfish ? "pill-ok" : "pill-warn"}`}
@@ -55,8 +64,18 @@ export function App() {
           <Route path="/" element={<GamesPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/games/:id" element={<GamePage />} />
-          <Route path="/report" element={<ReportPage />} />
-          <Route path="/report/:user" element={<ReportPage />} />
+          <Route
+            path="/teacher"
+            element={
+              <Suspense fallback={<Loading />}>
+                <TeacherPage />
+              </Suspense>
+            }
+          />
+          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/stats/:user" element={<StatsPage />} />
+          <Route path="/report" element={<Navigate to="/stats" replace />} />
+          <Route path="/report/:user" element={<ReportRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
@@ -66,4 +85,10 @@ export function App() {
       </footer>
     </div>
   );
+}
+
+/** Old /report links now open the Statistics page. */
+function ReportRedirect() {
+  const { user = "" } = useParams();
+  return <Navigate to={`/stats/${encodeURIComponent(user)}`} replace />;
 }

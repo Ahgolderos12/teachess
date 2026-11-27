@@ -211,6 +211,21 @@ def test_user_report(client: TestClient) -> None:
     assert ok(client.get("/api/users/nobody/report"))["known_user"] is False
 
 
+def test_user_stats_and_diagnosis(client: TestClient) -> None:
+    import_and_analyse(client)
+    stats = ok(client.get("/api/users/ALICE/stats"))
+    assert stats["user"] == "alice" and stats["games_analysed"] == 1
+    assert stats["summary"]["record"]["losses"] == 1
+    assert stats["errors"]["counts"]["blunder"] == 1
+    assert stats["terminations"]["loss"] == {"checkmate": 1}
+    assert stats["openings"][0]["opening"] == "Scholar's Mate"
+    assert [p["game_id"] for p in stats["timeline"]] == [1]
+    diagnosis = ok(client.get("/api/users/alice/diagnosis?window=10"))
+    assert diagnosis["window"]["games"] == 1 and diagnosis["notes"]
+    assert client.get("/api/users/nobody/stats").status_code == 404
+    assert client.get("/api/users/alice/diagnosis?window=1").status_code == 422
+
+
 def test_engine_endpoints(config: ApiConfig, client: TestClient) -> None:
     evaluation = ok(client.post("/api/engine/evaluate", json={"fen": FEN_BEFORE_NF6}))
     assert evaluation["best_move"] == "g6" and evaluation["eval"] == "-1.00"
@@ -292,3 +307,49 @@ def test_web_not_built(config: ApiConfig) -> None:
 
 def test_rejects_unknown_hosts(client: TestClient) -> None:
     assert client.get("/api/status", headers={"host": "evil.example"}).status_code == 400
+
+
+def test_sync_imports_and_analyses_new_games(config: ApiConfig) -> None:
+    for client in make_client(config):
+        status = ok(client.get("/api/sync"))
+        assert status["configured"] is True and status["users"] == {"lichess": "alice"}
+        assert status["interval_hours"] is None and status["job"] is None  # manual only
+        job = ok(client.post("/api/sync"), 202)
+        assert job["kind"] == "sync" and job["status"] == "done"
+        assert job["result"]["new"] == 1 and job["result"]["analyzed"] == 1
+        assert ok(client.get("/api/sync"))["job"]["id"] == job["id"]
+        again = ok(client.post("/api/sync"), 202)
+        assert again["result"]["new"] == 0 and again["result"]["analyzed"] == 0
+
+
+def test_sync_needs_a_configured_player(config: ApiConfig) -> None:
+    for client in make_client(replace(config, default_users={"chesscom": None})):
+        assert ok(client.get("/api/sync"))["configured"] is False
+        assert client.post("/api/sync").status_code == 400
+
+
+def test_sync_reports_platform_errors(config: ApiConfig) -> None:
+    def failing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    broken = replace(
+        config, http_client=lambda: http.make_client(transport=httpx.MockTransport(failing))
+    )
+    for client in make_client(broken):
+        job = ok(client.post("/api/sync"), 202)
+        assert job["status"] == "error" and "alice" in job["error"]
+
+
+def test_stats_filters(client: TestClient) -> None:
+    import_and_analyse(client)
+    filtered = ok(client.get("/api/users/alice/stats", params={"color": "black"}))
+    assert filtered["filter"] == {"color": "black"}
+    assert filtered["summary"]["record"]["games"] == 1
+    by_hour = ok(client.get("/api/users/alice/stats", params={"day_block": 18}))
+    assert by_hour["filter"] == {"day_block": 18}  # the count depends on the local time zone
+    assert filtered["options"]["openings"] == ["Scholar's Mate"]
+    empty = ok(client.get("/api/users/alice/stats", params={"color": "white"}))
+    assert empty["summary"]["record"]["games"] == 0 and empty["timeline"] == []
+    assert empty["options"]["games"] == 1  # options always cover every game
+    for bad in ({"day_block": 5}, {"since": "ayer"}, {"color": "red"}):
+        assert client.get("/api/users/alice/stats", params=bad).status_code == 422

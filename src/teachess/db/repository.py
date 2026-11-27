@@ -1,5 +1,6 @@
 """Data access for games, per-move analysis and the persistent engine cache."""
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -197,6 +198,26 @@ def _columns_to_eval(row: sqlite3.Row, prefix: str) -> PositionEval:
         pv=tuple(row[f"{prefix}_pv"].split()),
         depth=row[f"{prefix}_depth"],
     )
+
+
+# --- UI state shared between processes ---------------------------------------------
+
+
+def set_ui_state(conn: sqlite3.Connection, key: str, value: dict[str, Any]) -> None:
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO ui_state VALUES (?, ?, ?)",
+            (key, json.dumps(value), datetime.now(UTC).isoformat(timespec="milliseconds")),
+        )
+
+
+def get_ui_state(conn: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """The stored value plus its `updated_at`, or None."""
+    row = conn.execute("SELECT value, updated_at FROM ui_state WHERE key = ?", (key,)).fetchone()
+    if row is None:
+        return None
+    value: dict[str, Any] = json.loads(row["value"])
+    return {**value, "updated_at": row["updated_at"]}
 
 
 # --- persistent engine cache ---------------------------------------------------

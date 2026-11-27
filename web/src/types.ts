@@ -84,18 +84,6 @@ export interface GameDetail extends GameRow {
   moves: GameMove[];
 }
 
-export interface UserReport {
-  username: string;
-  known_user: boolean;
-  games_analyzed: number;
-  games_pending: number;
-  acpl: number | null;
-  counts: ErrorCounts;
-  by_phase: Record<Phase, ErrorCounts>;
-  results: Record<UserResult, number>;
-  worst_games: GameRow[];
-}
-
 export type JobStatus = "queued" | "running" | "done" | "error";
 
 export interface ImportResult {
@@ -115,7 +103,7 @@ export interface AnalysisResult {
 
 export interface Job<R = unknown> {
   id: string;
-  kind: "import" | "analysis";
+  kind: "import" | "analysis" | "sync";
   status: JobStatus;
   current: number;
   total: number;
@@ -161,3 +149,207 @@ export type CoachEvent =
       usage: { input_tokens: number; output_tokens: number; cache_read_tokens: number };
     }
   | { type: "error"; message: string };
+
+export type Outcome = "win" | "draw" | "loss";
+export type TimeClass = "bullet" | "blitz" | "rapid" | "daily";
+
+export interface ResultRecord {
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  score_pct: number | null;
+}
+
+export interface KeyedRecord extends ResultRecord {
+  key: string;
+  value?: number; // filter value (weekday, day_block)
+  min_gap?: number | null;
+  max_gap?: number | null;
+}
+
+export interface PhaseRate {
+  moves: number;
+  serious_errors: number;
+  serious_per_100: number | null;
+  avg_win_loss_pct: number | null;
+  counts?: ErrorCounts;
+}
+
+export interface FilterOptions {
+  time_classes: string[];
+  time_controls: string[];
+  terminations: string[];
+  openings: string[];
+  first_date: string | null;
+  last_date: string | null;
+  games: number;
+}
+
+export interface PlayerStats {
+  user: string;
+  filter: Record<string, string | number>;
+  options: FilterOptions;
+  games_total: number;
+  games_analysed: number;
+  games_pending: number;
+  summary: {
+    record: ResultRecord;
+    acpl: number | null;
+    accuracy: number | null;
+    avg_moves: number | null;
+    ratings: {
+      time_class: TimeClass;
+      games: number;
+      latest: number;
+      peak: number;
+      lowest: number;
+      change: number;
+      avg_opponent: number | null;
+    }[];
+    streaks: {
+      current: { outcome: Outcome; games: number } | null;
+      longest_win: number;
+      longest_loss: number;
+    };
+  };
+  results: {
+    by_color: Record<Color, ResultRecord>;
+    by_time_class: KeyedRecord[];
+    by_time_control: KeyedRecord[];
+    by_rating_diff: KeyedRecord[];
+    by_weekday: KeyedRecord[];
+    by_time_of_day: KeyedRecord[];
+  };
+  terminations: Record<Outcome, Record<string, number>>;
+  errors: {
+    moves: number;
+    counts: ErrorCounts;
+    per_game: Record<ErrorClass, number | null>;
+    by_phase: Record<Phase, PhaseRate>;
+    games_without_serious_errors: number;
+  };
+  openings: {
+    opening: string;
+    color: Color;
+    games: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    points: number;
+    score_pct: number | null;
+    accuracy: number | null;
+    acpl: number | null;
+    decided_early: number;
+    last_game_id: number;
+  }[];
+  time: {
+    avg_seconds_by_phase: Record<Phase, number | null>;
+    think_time: { key: string; moves: number; serious_errors: number; serious_pct: number | null }[];
+    low_clock_moves_pct: number | null;
+    serious_per_100_low_clock: number | null;
+    serious_per_100_otherwise: number | null;
+    losses_on_time: number;
+    wins_on_time: number;
+    avg_clock_left_pct_end_of_losses: number | null;
+  };
+  decisive_errors: {
+    not_won: number;
+    with_decisive_error: number;
+    by_move_number: { key: string; games: number }[];
+    by_phase: Partial<Record<Phase, number>>;
+    avg_move_number: number | null;
+    avg_seconds_spent: number | null;
+  };
+  conversion: {
+    winning_games: number;
+    converted: number;
+    conversion_pct: number | null;
+    losing_games: number;
+    saved: number;
+    save_pct: number | null;
+  };
+  duration: Record<Outcome, number | null>;
+  monthly: (ResultRecord & { month: string; accuracy: number | null; acpl: number | null })[];
+  timeline: {
+    game_id: number;
+    played_at: string | null;
+    opponent: string;
+    user_color: Color;
+    opening: string | null;
+    termination: string;
+    outcome: Outcome;
+    rating_gap: number | null;
+    rating: number | null;
+    time_control: string | null;
+    time_class: TimeClass;
+    accuracy: number | null;
+    acpl: number | null;
+    blunders: number | null;
+    mistakes: number | null;
+  }[];
+  worst_games: {
+    game_id: number;
+    played_at: string | null;
+    opponent: string;
+    user_color: Color;
+    outcome: Outcome;
+    opening: string | null;
+    counts: ErrorCounts;
+    accuracy: number | null;
+    acpl: number | null;
+  }[];
+}
+
+export interface Finding {
+  kind: string;
+  title: string;
+  summary: string;
+  lesson: string;
+  points_lost: number;
+  games_affected: number;
+  evidence: { game_id: number; move?: string }[];
+}
+
+export interface Diagnosis {
+  user: string;
+  games_total: number;
+  games_analysed: number;
+  window: { games: number; from: string | null; to: string | null };
+  findings: Finding[];
+  notes: string[];
+}
+
+export interface SyncResult {
+  platforms: { platform: Platform; user: string; new?: number; analyzed?: number; error?: string }[];
+  new: number;
+  analyzed: number;
+}
+
+export interface SyncStatus {
+  configured: boolean;
+  interval_hours: number | null;
+  next_run_at: number | null; // epoch seconds
+  job: Job<SyncResult> | null;
+  users: Partial<Record<Platform, string>>;
+}
+
+export interface TeacherInfo {
+  available: boolean;
+  reason: string | null;
+  token: string | null;
+  manual_command: string;
+}
+
+export interface TeacherBoard {
+  fen: string;
+  orientation: Color;
+  arrow: { uci: string; san: string } | null;
+  caption: string;
+  updated_at: string;
+}
+
+export type TerminalMessage =
+  | { type: "output"; data: string }
+  | { type: "exit"; code: number };
